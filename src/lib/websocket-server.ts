@@ -16,16 +16,18 @@ export class WebSocketServer {
 
   private setupEventHandlers() {
     this.io.on("connection", (socket) => {
-      console.log("Client connected:", socket.id);
+      console.log(`📱 Client connected: ${socket.id.substring(0, 8)}`);
 
       // Send initial sessions and debug mode status
       socket.emit("sessions:list", this.agentManager.getAllSessions());
-      socket.emit("debug:status", { enabled: this.agentManager.getDebugMode() });
+      socket.emit("debug:status", {
+        enabled: this.agentManager.getDebugMode(),
+      });
 
       // Handle session creation
       socket.on(
         "session:create",
-        async (data: { name: string; task: string }) => {
+        async (data: { name?: string; task: string }) => {
           try {
             const session = await this.agentManager.createSession(
               data.name,
@@ -138,11 +140,13 @@ export class WebSocketServer {
       });
 
       socket.on("debug:status", () => {
-        socket.emit("debug:status", { enabled: this.agentManager.getDebugMode() });
+        socket.emit("debug:status", {
+          enabled: this.agentManager.getDebugMode(),
+        });
       });
 
       socket.on("disconnect", () => {
-        console.log("Client disconnected:", socket.id);
+        console.log(`📱 Client disconnected: ${socket.id.substring(0, 8)}`);
       });
     });
   }

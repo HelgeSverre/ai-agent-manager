@@ -6,20 +6,20 @@ This guide provides step-by-step tutorials for common workflows with Claude Code
 
 ## Table of contents
 
-* [Resume previous conversations](#resume-previous-conversations)
-* [Understand new codebases](#understand-new-codebases)
-* [Fix bugs efficiently](#fix-bugs-efficiently)
-* [Refactor code](#refactor-code)
-* [Work with tests](#work-with-tests)
-* [Create pull requests](#create-pull-requests)
-* [Handle documentation](#handle-documentation)
-* [Work with images](#work-with-images)
-* [Use extended thinking](#use-extended-thinking)
-* [Set up project memory](#set-up-project-memory)
-* [Set up Model Context Protocol (MCP)](#set-up-model-context-protocol-mcp)
-* [Use Claude as a unix-style utility](#use-claude-as-a-unix-style-utility)
-* [Create custom slash commands](#create-custom-slash-commands)
-* [Run parallel Claude Code sessions with Git worktrees](#run-parallel-claude-code-sessions-with-git-worktrees)
+- [Resume previous conversations](#resume-previous-conversations)
+- [Understand new codebases](#understand-new-codebases)
+- [Fix bugs efficiently](#fix-bugs-efficiently)
+- [Refactor code](#refactor-code)
+- [Work with tests](#work-with-tests)
+- [Create pull requests](#create-pull-requests)
+- [Handle documentation](#handle-documentation)
+- [Work with images](#work-with-images)
+- [Use extended thinking](#use-extended-thinking)
+- [Set up project memory](#set-up-project-memory)
+- [Set up Model Context Protocol (MCP)](#set-up-model-context-protocol-mcp)
+- [Use Claude as a unix-style utility](#use-claude-as-a-unix-style-utility)
+- [Create custom slash commands](#create-custom-slash-commands)
+- [Run parallel Claude Code sessions with Git worktrees](#run-parallel-claude-code-sessions-with-git-worktrees)
 
 ## Resume previous conversations
 
@@ -29,8 +29,8 @@ This guide provides step-by-step tutorials for common workflows with Claude Code
 
 Claude Code provides two options for resuming previous conversations:
 
-* `--continue` to automatically continue the most recent conversation
-* `--resume` to display a conversation picker
+- `--continue` to automatically continue the most recent conversation
+- `--resume` to display a conversation picker
 
 <Steps>
   <Step title="Continue the most recent conversation">
@@ -39,6 +39,7 @@ Claude Code provides two options for resuming previous conversations:
     ```
 
     This immediately resumes your most recent conversation without any prompts.
+
   </Step>
 
   <Step title="Continue in non-interactive mode">
@@ -47,6 +48,7 @@ Claude Code provides two options for resuming previous conversations:
     ```
 
     Use `--print` with `--continue` to resume the most recent conversation in non-interactive mode, perfect for scripts or automation.
+
   </Step>
 
   <Step title="Show conversation picker">
@@ -61,6 +63,7 @@ Claude Code provides two options for resuming previous conversations:
     * Message count
 
     Use arrow keys to navigate and press Enter to select a conversation.
+
   </Step>
 </Steps>
 
@@ -73,11 +76,11 @@ Claude Code provides two options for resuming previous conversations:
 
 **Tips:**
 
-* Conversation history is stored locally on your machine
-* Use `--continue` for quick access to your most recent conversation
-* Use `--resume` when you need to select a specific past conversation
-* When resuming, you'll see the entire conversation history before continuing
-* The resumed conversation starts with the same model and configuration as the original
+- Conversation history is stored locally on your machine
+- Use `--continue` for quick access to your most recent conversation
+- Use `--resume` when you need to select a specific past conversation
+- When resuming, you'll see the entire conversation history before continuing
+- The resumed conversation starts with the same model and configuration as the original
 
 **Examples:**
 
@@ -132,14 +135,15 @@ claude --continue --print "Run the tests again"
     ```
     > how is authentication handled?
     ```
+
   </Step>
 </Steps>
 
 **Tips:**
 
-* Start with broad questions, then narrow down to specific areas
-* Ask about coding conventions and patterns used in the project
-* Request a glossary of project-specific terms
+- Start with broad questions, then narrow down to specific areas
+- Ask about coding conventions and patterns used in the project
+- Request a glossary of project-specific terms
 
 ### Find relevant code
 
@@ -167,10 +171,10 @@ claude --continue --print "Run the tests again"
 
 **Tips:**
 
-* Be specific about what you're looking for
-* Use domain language from the project
+- Be specific about what you're looking for
+- Use domain language from the project
 
-***
+---
 
 ## Fix bugs efficiently
 
@@ -200,11 +204,11 @@ claude --continue --print "Run the tests again"
 
 **Tips:**
 
-* Tell Claude the command to reproduce the issue and get a stack trace
-* Mention any steps to reproduce the error
-* Let Claude know if the error is intermittent or consistent
+- Tell Claude the command to reproduce the issue and get a stack trace
+- Mention any steps to reproduce the error
+- Let Claude know if the error is intermittent or consistent
 
-***
+---
 
 ## Refactor code
 
@@ -240,11 +244,11 @@ claude --continue --print "Run the tests again"
 
 **Tips:**
 
-* Ask Claude to explain the benefits of the modern approach
-* Request that changes maintain backward compatibility when needed
-* Do refactoring in small, testable increments
+- Ask Claude to explain the benefits of the modern approach
+- Request that changes maintain backward compatibility when needed
+- Do refactoring in small, testable increments
 
-***
+---
 
 ## Work with tests
 
@@ -280,11 +284,11 @@ claude --continue --print "Run the tests again"
 
 **Tips:**
 
-* Ask for tests that cover edge cases and error conditions
-* Request both unit and integration tests when appropriate
-* Have Claude explain the testing strategy
+- Ask for tests that cover edge cases and error conditions
+- Request both unit and integration tests when appropriate
+- Have Claude explain the testing strategy
 
-***
+---
 
 ## Create pull requests
 
@@ -320,9 +324,9 @@ claude --continue --print "Run the tests again"
 
 **Tips:**
 
-* Ask Claude directly to make a PR for you
-* Review Claude's generated PR before submitting
-* Ask Claude to highlight potential risks or considerations
+- Ask Claude directly to make a PR for you
+- Review Claude's generated PR before submitting
+- Ask Claude to highlight potential risks or considerations
 
 ## Handle documentation
 
@@ -358,9 +362,9 @@ claude --continue --print "Run the tests again"
 
 **Tips:**
 
-* Specify the documentation style you want (JSDoc, docstrings, etc.)
-* Ask for examples in the documentation
-* Request documentation for public APIs, interfaces, and complex logic
+- Specify the documentation style you want (JSDoc, docstrings, etc.)
+- Ask for examples in the documentation
+- Request documentation for public APIs, interfaces, and complex logic
 
 ## Work with images
 
@@ -375,6 +379,7 @@ claude --continue --print "Run the tests again"
     1. Drag and drop an image into the Claude Code window
     2. Copy an image and paste it into the CLI with cmd+v (on Mac)
     3. Provide an image path claude "Analyze this image: /path/to/your/image.png"
+
   </Step>
 
   <Step title="Ask Claude to analyze the image">
@@ -402,12 +407,12 @@ claude --continue --print "Run the tests again"
 
 **Tips:**
 
-* Use images when text descriptions would be unclear or cumbersome
-* Include screenshots of errors, UI designs, or diagrams for better context
-* You can work with multiple images in a conversation
-* Image analysis works with diagrams, screenshots, mockups, and more
+- Use images when text descriptions would be unclear or cumbersome
+- Include screenshots of errors, UI designs, or diagrams for better context
+- You can work with multiple images in a conversation
+- Image analysis works with diagrams, screenshots, mockups, and more
 
-***
+---
 
 ## Use extended thinking
 
@@ -423,6 +428,7 @@ claude --continue --print "Run the tests again"
 
     Claude will gather relevant information from your codebase and
     use extended thinking, which will be visible in the interface.
+
   </Step>
 
   <Step title="Refine the thinking with follow-up prompts">
@@ -437,16 +443,16 @@ claude --continue --print "Run the tests again"
 
 Extended thinking is most valuable for complex tasks such as:
 
-* Planning complex architectural changes
-* Debugging intricate issues
-* Creating implementation plans for new features
-* Understanding complex codebases
-* Evaluating tradeoffs between different approaches
+- Planning complex architectural changes
+- Debugging intricate issues
+- Creating implementation plans for new features
+- Understanding complex codebases
+- Evaluating tradeoffs between different approaches
 
 The way you prompt for thinking results in varying levels of thinking depth:
 
-* "think" triggers basic extended thinking
-* intensifying phrases such as "think more", "think a lot", "think harder", or "think longer" triggers deeper thinking
+- "think" triggers basic extended thinking
+- intensifying phrases such as "think more", "think a lot", "think harder", or "think longer" triggers deeper thinking
 
 For more extended thinking prompting tips, see [Extended thinking tips](/en/docs/build-with-claude/prompt-engineering/extended-thinking-tips).
 
@@ -455,7 +461,7 @@ For more extended thinking prompting tips, see [Extended thinking tips](/en/docs
   response.
 </Note>
 
-***
+---
 
 ## Set up project memory
 
@@ -473,12 +479,12 @@ For more extended thinking prompting tips, see [Extended thinking tips](/en/docs
 
 **Tips:**
 
-* Include frequently used commands (build, test, lint) to avoid repeated searches
-* Document code style preferences and naming conventions
-* Add important architectural patterns specific to your project
-* CLAUDE.md memories can be used for both instructions shared with your team and for your individual preferences.
+- Include frequently used commands (build, test, lint) to avoid repeated searches
+- Document code style preferences and naming conventions
+- Add important architectural patterns specific to your project
+- CLAUDE.md memories can be used for both instructions shared with your team and for your individual preferences.
 
-***
+---
 
 ## Set up Model Context Protocol (MCP)
 
@@ -503,6 +509,7 @@ Model Context Protocol (MCP) is an open protocol that enables LLMs to access ext
     # Example: Adding a local server
     claude mcp add my-server -e API_KEY=123 -- /path/to/server arg1 arg2
     ```
+
   </Step>
 
   <Step title="Add an MCP SSE Server">
@@ -513,6 +520,7 @@ Model Context Protocol (MCP) is an open protocol that enables LLMs to access ext
     # Example: Adding an SSE server
     claude mcp add --transport sse sse-server https://example.com/sse-endpoint
     ```
+
   </Step>
 
   <Step title="Manage your MCP servers">
@@ -526,19 +534,20 @@ Model Context Protocol (MCP) is an open protocol that enables LLMs to access ext
     # Remove a server
     claude mcp remove my-server
     ```
+
   </Step>
 </Steps>
 
 **Tips:**
 
-* Use the `-s` or `--scope` flag to specify where the configuration is stored:
-    * `local` (default): Available only to you in the current project (was called `project` in older versions)
-    * `project`: Shared with everyone in the project via `.mcp.json` file
-    * `user`: Available to you across all projects (was called `global` in older versions)
-* Set environment variables with `-e` or `--env` flags (e.g., `-e KEY=value`)
-* Configure MCP server startup timeout using the MCP\_TIMEOUT environment variable (e.g., `MCP_TIMEOUT=10000 claude` sets a 10-second timeout)
-* Check MCP server status any time using the `/mcp` command within Claude Code
-* MCP follows a client-server architecture where Claude Code (the client) can connect to multiple specialized servers
+- Use the `-s` or `--scope` flag to specify where the configuration is stored:
+  - `local` (default): Available only to you in the current project (was called `project` in older versions)
+  - `project`: Shared with everyone in the project via `.mcp.json` file
+  - `user`: Available to you across all projects (was called `global` in older versions)
+- Set environment variables with `-e` or `--env` flags (e.g., `-e KEY=value`)
+- Configure MCP server startup timeout using the MCP_TIMEOUT environment variable (e.g., `MCP_TIMEOUT=10000 claude` sets a 10-second timeout)
+- Check MCP server status any time using the `/mcp` command within Claude Code
+- MCP follows a client-server architecture where Claude Code (the client) can connect to multiple specialized servers
 
 ### Understanding MCP server scopes
 
@@ -555,6 +564,7 @@ Model Context Protocol (MCP) is an open protocol that enables LLMs to access ext
     # Explicitly specify local scope
     claude mcp add my-private-server -s local /path/to/server
     ```
+
   </Step>
 
   <Step title="Project-scoped MCP servers (.mcp.json)">
@@ -578,6 +588,7 @@ Model Context Protocol (MCP) is an open protocol that enables LLMs to access ext
       }
     }
     ```
+
   </Step>
 
   <Step title="User-scoped MCP servers">
@@ -587,17 +598,18 @@ Model Context Protocol (MCP) is an open protocol that enables LLMs to access ext
     # Add a user server
     claude mcp add my-user-server -s user /path/to/server
     ```
+
   </Step>
 </Steps>
 
 **Tips:**
 
-* Local-scoped servers take precedence over project-scoped and user-scoped servers with the same name
-* Project-scoped servers (in `.mcp.json`) take precedence over user-scoped servers with the same name
-* Before using project-scoped servers from `.mcp.json`, Claude Code will prompt you to approve them for security
-* The `.mcp.json` file is intended to be checked into version control to share MCP servers with your team
-* Project-scoped servers make it easy to ensure everyone on your team has access to the same MCP tools
-* If you need to reset your choices for which project-scoped servers are enabled or disabled, use the `claude mcp reset-project-choices` command
+- Local-scoped servers take precedence over project-scoped and user-scoped servers with the same name
+- Project-scoped servers (in `.mcp.json`) take precedence over user-scoped servers with the same name
+- Before using project-scoped servers from `.mcp.json`, Claude Code will prompt you to approve them for security
+- The `.mcp.json` file is intended to be checked into version control to share MCP servers with your team
+- Project-scoped servers make it easy to ensure everyone on your team has access to the same MCP tools
+- If you need to reset your choices for which project-scoped servers are enabled or disabled, use the `claude mcp reset-project-choices` command
 
 ### Connect to a Postgres MCP server
 
@@ -618,15 +630,16 @@ Model Context Protocol (MCP) is an open protocol that enables LLMs to access ext
     > what are the most recent orders in the system?
     > show me the relationship between customers and invoices
     ```
+
   </Step>
 </Steps>
 
 **Tips:**
 
-* The Postgres MCP server provides read-only access for safety
-* Claude can help you explore database structure and run analytical queries
-* You can use this to quickly understand database schemas in unfamiliar projects
-* Make sure your connection string uses appropriate credentials with minimum required permissions
+- The Postgres MCP server provides read-only access for safety
+- Claude can help you explore database structure and run analytical queries
+- You can use this to quickly understand database schemas in unfamiliar projects
+- Make sure your connection string uses appropriate credentials with minimum required permissions
 
 ### Add MCP servers from JSON configuration
 
@@ -641,6 +654,7 @@ Model Context Protocol (MCP) is an open protocol that enables LLMs to access ext
     # Example: Adding a stdio server with JSON configuration
     claude mcp add-json weather-api '{"type":"stdio","command":"/path/to/weather-cli","args":["--api-key","abc123"],"env":{"CACHE_DIR":"/tmp"}}'
     ```
+
   </Step>
 
   <Step title="Verify the server was added">
@@ -652,9 +666,9 @@ Model Context Protocol (MCP) is an open protocol that enables LLMs to access ext
 
 **Tips:**
 
-* Make sure the JSON is properly escaped in your shell
-* The JSON must conform to the MCP server configuration schema
-* You can use `-s global` to add the server to your global configuration instead of the project-specific one
+- Make sure the JSON is properly escaped in your shell
+- The JSON must conform to the MCP server configuration schema
+- You can use `-s global` to add the server to your global configuration instead of the project-specific one
 
 ### Import MCP servers from Claude Desktop
 
@@ -681,11 +695,11 @@ Model Context Protocol (MCP) is an open protocol that enables LLMs to access ext
 
 **Tips:**
 
-* This feature only works on macOS and Windows Subsystem for Linux (WSL)
-* It reads the Claude Desktop configuration file from its standard location on those platforms
-* Use the `-s global` flag to add servers to your global configuration
-* Imported servers will have the same names as in Claude Desktop
-* If servers with the same names already exist, they will get a numerical suffix (e.g., `server_1`)
+- This feature only works on macOS and Windows Subsystem for Linux (WSL)
+- It reads the Claude Desktop configuration file from its standard location on those platforms
+- Use the `-s global` flag to add servers to your global configuration
+- Imported servers will have the same names as in Claude Desktop
+- If servers with the same names already exist, they will get a numerical suffix (e.g., `server_1`)
 
 ### Use Claude Code as an MCP server
 
@@ -709,16 +723,17 @@ Model Context Protocol (MCP) is an open protocol that enables LLMs to access ext
       "env": {}
     }
     ```
+
   </Step>
 </Steps>
 
 **Tips:**
 
-* The server provides access to Claude's tools like View, Edit, LS, etc.
-* In Claude Desktop, try asking Claude to read files in a directory, make edits, and more.
-* Note that this MCP server is simply exposing Claude Code's tools to your MCP client, so your own client is responsible for implementing user confirmation for individual tool calls.
+- The server provides access to Claude's tools like View, Edit, LS, etc.
+- In Claude Desktop, try asking Claude to read files in a directory, make edits, and more.
+- Note that this MCP server is simply exposing Claude Code's tools to your MCP client, so your own client is responsible for implementing user confirmation for individual tool calls.
 
-***
+---
 
 ## Use Claude as a unix-style utility
 
@@ -766,6 +781,7 @@ Model Context Protocol (MCP) is an open protocol that enables LLMs to access ext
     ```
 
     This outputs just Claude's plain text response (default behavior).
+
   </Step>
 
   <Step title="Use JSON format">
@@ -774,6 +790,7 @@ Model Context Protocol (MCP) is an open protocol that enables LLMs to access ext
     ```
 
     This outputs a JSON array of messages with metadata including cost and duration.
+
   </Step>
 
   <Step title="Use streaming JSON format">
@@ -782,16 +799,17 @@ Model Context Protocol (MCP) is an open protocol that enables LLMs to access ext
     ```
 
     This outputs a series of JSON objects in real-time as Claude processes the request. Each message is a valid JSON object, but the entire output is not valid JSON if concatenated.
+
   </Step>
 </Steps>
 
 **Tips:**
 
-* Use `--output-format text` for simple integrations where you just need Claude's response
-* Use `--output-format json` when you need the full conversation log
-* Use `--output-format stream-json` for real-time output of each conversation turn
+- Use `--output-format text` for simple integrations where you just need Claude's response
+- Use `--output-format json` when you need the full conversation log
+- Use `--output-format stream-json` for real-time output of each conversation turn
 
-***
+---
 
 ## Create custom slash commands
 
@@ -823,10 +841,10 @@ Claude Code supports custom slash commands that you can create to quickly execut
 
 **Tips:**
 
-* Command names are derived from the filename (e.g., `optimize.md` becomes `/project:optimize`)
-* You can organize commands in subdirectories (e.g., `.claude/commands/frontend/component.md` becomes `/project:frontend:component`)
-* Project commands are available to everyone who clones the repository
-* The Markdown file content becomes the prompt sent to Claude when the command is invoked
+- Command names are derived from the filename (e.g., `optimize.md` becomes `/project:optimize`)
+- You can organize commands in subdirectories (e.g., `.claude/commands/frontend/component.md` becomes `/project:frontend:component`)
+- Project commands are available to everyone who clones the repository
+- The Markdown file content becomes the prompt sent to Claude when the command is invoked
 
 ### Add command arguments with \$ARGUMENTS
 
@@ -849,14 +867,15 @@ Claude Code supports custom slash commands that you can create to quickly execut
     ```
 
     This will replace \$ARGUMENTS with "123" in the prompt.
+
   </Step>
 </Steps>
 
 **Tips:**
 
-* The \$ARGUMENTS placeholder is replaced with any text that follows the command
-* You can position \$ARGUMENTS anywhere in your command template
-* Other useful applications: generating test cases for specific functions, creating documentation for components, reviewing code in particular files, or translating content to specified languages
+- The \$ARGUMENTS placeholder is replaced with any text that follows the command
+- You can position \$ARGUMENTS anywhere in your command template
+- Other useful applications: generating test cases for specific functions, creating documentation for components, reviewing code in particular files, or translating content to specified languages
 
 ### Create personal slash commands
 
@@ -885,12 +904,12 @@ Claude Code supports custom slash commands that you can create to quickly execut
 
 **Tips:**
 
-* Personal commands are prefixed with `/user:` instead of `/project:`
-* Personal commands are only available to you and not shared with your team
-* Personal commands work across all your projects
-* You can use these for consistent workflows across different codebases
+- Personal commands are prefixed with `/user:` instead of `/project:`
+- Personal commands are only available to you and not shared with your team
+- Personal commands work across all your projects
+- You can use these for consistent workflows across different codebases
 
-***
+---
 
 ## Run parallel Claude Code sessions with Git worktrees
 
@@ -917,6 +936,7 @@ Claude Code supports custom slash commands that you can create to quickly execut
     ```
 
     This creates a new directory with a separate working copy of your repository.
+
   </Step>
 
   <Step title="Run Claude Code in each worktree">
@@ -927,6 +947,7 @@ Claude Code supports custom slash commands that you can create to quickly execut
     # Run Claude Code in this isolated environment
     claude
     ```
+
   </Step>
 
   <Step>
@@ -936,6 +957,7 @@ Claude Code supports custom slash commands that you can create to quickly execut
     cd ../project-bugfix
     claude
     ```
+
   </Step>
 
   <Step title="Manage your worktrees">
@@ -946,22 +968,23 @@ Claude Code supports custom slash commands that you can create to quickly execut
     # Remove a worktree when done
     git worktree remove ../project-feature-a
     ```
+
   </Step>
 </Steps>
 
 **Tips:**
 
-* Each worktree has its own independent file state, making it perfect for parallel Claude Code sessions
-* Changes made in one worktree won't affect others, preventing Claude instances from interfering with each other
-* All worktrees share the same Git history and remote connections
-* For long-running tasks, you can have Claude working in one worktree while you continue development in another
-* Use descriptive directory names to easily identify which task each worktree is for
-* Remember to initialize your development environment in each new worktree according to your project's setup. Depending on your stack, this might include:
-    * JavaScript projects: Running dependency installation (`npm install`, `yarn`)
-    * Python projects: Setting up virtual environments or installing with package managers
-    * Other languages: Following your project's standard setup process
+- Each worktree has its own independent file state, making it perfect for parallel Claude Code sessions
+- Changes made in one worktree won't affect others, preventing Claude instances from interfering with each other
+- All worktrees share the same Git history and remote connections
+- For long-running tasks, you can have Claude working in one worktree while you continue development in another
+- Use descriptive directory names to easily identify which task each worktree is for
+- Remember to initialize your development environment in each new worktree according to your project's setup. Depending on your stack, this might include:
+  - JavaScript projects: Running dependency installation (`npm install`, `yarn`)
+  - Python projects: Setting up virtual environments or installing with package managers
+  - Other languages: Following your project's standard setup process
 
-***
+---
 
 ## Next steps
 

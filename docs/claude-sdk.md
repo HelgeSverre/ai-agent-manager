@@ -122,8 +122,8 @@ $ claude -p "Deploy the application" \
 
 Note: When using MCP tools, you must explicitly allow them using the `--allowedTools` flag. MCP tool names follow the pattern `mcp__<serverName>__<toolName>` where:
 
-* `serverName` is the key from your MCP configuration file
-* `toolName` is the specific tool provided by that server
+- `serverName` is the key from your MCP configuration file
+- `toolName` is the specific tool provided by that server
 
 This security measure ensures that MCP tools are only used when explicitly permitted.
 
@@ -179,12 +179,12 @@ server.tool(
               : {
                   behavior: "deny",
                   message: "Permission denied by test approval_prompt tool",
-                }
+                },
           ),
         },
       ],
     };
-  }
+  },
 );
 ```
 
@@ -198,8 +198,8 @@ claude -p "..." \
 
 Usage notes:
 
-* Use `updatedInput` to tell the model that the permission prompt mutated its input; otherwise, set `updatedInput` to the original input, as in the example above. For example, if the tool shows a file edit diff to the user and lets them edit the diff manually, the permission prompt tool should return that updated edit.
-* The payload must be JSON-stringified
+- Use `updatedInput` to tell the model that the permission prompt mutated its input; otherwise, set `updatedInput` to the original input, as in the example above. For example, if the tool shows a file edit diff to the user and lets them edit the diff manually, the permission prompt tool should return that updated edit.
+- The payload must be JSON-stringified
 
 ## Available CLI options
 
@@ -421,6 +421,6 @@ The Claude Code SDK enables powerful integrations with your development workflow
 
 ## Related resources
 
-* [CLI usage and controls](/en/docs/claude-code/cli-usage) - Complete CLI documentation
-* [GitHub Actions integration](/en/docs/claude-code/github-actions) - Automate your GitHub workflow with Claude
-* [Tutorials](/en/docs/claude-code/tutorials) - Step-by-step guides for common use cases
+- [CLI usage and controls](/en/docs/claude-code/cli-usage) - Complete CLI documentation
+- [GitHub Actions integration](/en/docs/claude-code/github-actions) - Automate your GitHub workflow with Claude
+- [Tutorials](/en/docs/claude-code/tutorials) - Step-by-step guides for common use cases

@@ -11,13 +11,13 @@ the interactive REPL.
 The new `settings.json` file format is our official mechanism for configuring Claude
 Code through hierarchical settings:
 
-* **User settings** are defined in `~/.claude/settings.json` and apply to all
+- **User settings** are defined in `~/.claude/settings.json` and apply to all
   projects.
-* **Project settings** are saved in your project directory under
+- **Project settings** are saved in your project directory under
   `.claude/settings.json` for shared settings, and `.claude/settings.local.json`
   for local project settings. Claude Code will configure git to ignore
   `.claude/settings.local.json` when it is created.
-* For enterprise deployments of Claude Code, we also support **enterprise
+- For enterprise deployments of Claude Code, we also support **enterprise
   managed policy settings**. These take precedence over user and project
   settings. System administrators can deploy policies to
   `/Library/Application Support/ClaudeCode/policies.json` on macOS and
@@ -69,9 +69,9 @@ Settings are applied in order of precedence:
 You can view & manage Claude Code's tool permissions with `/permissions`. This UI
 lists all permission rules and the settings.json file they are sourced from.
 
-* **Allow** rules will allow Claude Code to use the specified tool without
+- **Allow** rules will allow Claude Code to use the specified tool without
   further manual approval.
-* **Deny** rules will prevent Claude Code from using the specified tool. Deny
+- **Deny** rules will prevent Claude Code from using the specified tool. Deny
   rules take precedence over allow rules.
 
 Permission rules use the format: `Tool(optional-specifier)`
@@ -89,8 +89,8 @@ that start with `git diff`. The following tools support permission rules with sp
 
 #### Bash
 
-* `Bash(npm run build)` Matches the exact Bash command `npm run build`
-* `Bash(npm run test:*)` Matches Bash commands starting with `npm run test`.
+- `Bash(npm run build)` Matches the exact Bash command `npm run build`
+- `Bash(npm run test:*)` Matches Bash commands starting with `npm run test`.
 
 <Tip>
   Claude Code is aware of shell operators (like `&&`) so a prefix match rule
@@ -110,18 +110,18 @@ resolved relative to the directory containing `.claude/settings.json`. To
 reference an absolute path, use `//`. For a path relative to your home
 directory, use `~/`.
 
-* `Edit(docs/**)` Matches edits to files in the `docs` directory of your project
-* `Read(~/.zshrc)` Matches reads to your `~/.zshrc` file
-* `Edit(//tmp/scratch.txt)` Matches edits to `/tmp/scratch.txt`
+- `Edit(docs/**)` Matches edits to files in the `docs` directory of your project
+- `Read(~/.zshrc)` Matches reads to your `~/.zshrc` file
+- `Edit(//tmp/scratch.txt)` Matches edits to `/tmp/scratch.txt`
 
 #### WebFetch
 
-* `WebFetch(domain:example.com)` Matches fetch requests to example.com
+- `WebFetch(domain:example.com)` Matches fetch requests to example.com
 
 #### MCP
 
-* `mcp__puppeteer` Matches any tool provided by the `puppeteer` server (name configured in Claude Code)
-* `mcp__puppeteer__puppeteer_navigate` Matches the `puppeteer_navigate` tool provided by the `puppeteer` server
+- `mcp__puppeteer` Matches any tool provided by the `puppeteer` server (name configured in Claude Code)
+- `mcp__puppeteer__puppeteer_navigate` Matches the `puppeteer_navigate` tool provided by the `puppeteer` server
 
 ## Auto-updater permission options
 
@@ -159,9 +159,9 @@ npm install -g @anthropic-ai/claude-code
 
 **Why we recommend this option:**
 
-* Avoids modifying system directory permissions
-* Creates a clean, dedicated location for your global npm packages
-* Follows security best practices
+- Avoids modifying system directory permissions
+- Creates a clean, dedicated location for your global npm packages
+- Follows security best practices
 
 Since Claude Code is actively developing, we recommend setting up auto-updates
 using the recommended option above.
@@ -178,9 +178,9 @@ guidelines to optimize your experience.
 
 **Supported shells**:
 
-* Bash
-* Zsh
-* Fish
+- Bash
+- Zsh
+- Fish
 
 ### Themes and appearance
 
@@ -192,8 +192,8 @@ onboarding or any time via the `/config` command
 
 You have several options for entering linebreaks into Claude Code:
 
-* **Quick escape**: Type `\` followed by Enter to create a newline
-* **Keyboard shortcut**: Press Option+Enter (Meta+Enter) with proper
+- **Quick escape**: Type `\` followed by Enter to create a newline
+- **Keyboard shortcut**: Press Option+Enter (Meta+Enter) with proper
   configuration
 
 To set up Option+Enter in your terminal:
@@ -243,11 +243,11 @@ default macOS Terminal.
 
 When working with extensive code or long instructions:
 
-* **Avoid direct pasting**: Claude Code may struggle with very long pasted
+- **Avoid direct pasting**: Claude Code may struggle with very long pasted
   content
-* **Use file-based workflows**: Write content to a file and ask Claude to read
+- **Use file-based workflows**: Write content to a file and ask Claude to read
   it
-* **Be aware of VS Code limitations**: The VS Code terminal is particularly
+- **Be aware of VS Code limitations**: The VS Code terminal is particularly
   prone to truncating long pastes
 
 ### Vim Mode
@@ -257,9 +257,9 @@ or configured via `/config`.
 
 The supported subset includes:
 
-* Mode switching: `Esc` (to NORMAL), `i`/`I`, `a`/`A`, `o`/`O` (to INSERT)
-* Navigation: `h`/`j`/`k`/`l`, `w`/`e`/`b`, `0`/`$`/`^`, `gg`/`G`
-* Editing: `x`, `dw`/`de`/`db`/`dd`/`D`, `cw`/`ce`/`cb`/`cc`/`C`, `.` (repeat)
+- Mode switching: `Esc` (to NORMAL), `i`/`I`, `a`/`A`, `o`/`O` (to INSERT)
+- Navigation: `h`/`j`/`k`/`l`, `w`/`e`/`b`, `0`/`$`/`^`, `gg`/`G`
+- Editing: `x`, `dw`/`de`/`db`/`dd`/`D`, `cw`/`ce`/`cb`/`cc`/`C`, `.` (repeat)
 
 ## Environment variables
 
@@ -311,11 +311,11 @@ We are in the process of migration global configuration to `settings.json`.
 
 To manage your configurations, use the following commands:
 
-* List settings: `claude config list`
-* See a setting: `claude config get <key>`
-* Change a setting: `claude config set <key> <value>`
-* Push to a setting (for lists): `claude config add <key> <value>`
-* Remove from a setting (for lists): `claude config remove <key> <value>`
+- List settings: `claude config list`
+- See a setting: `claude config get <key>`
+- Change a setting: `claude config set <key> <value>`
+- Push to a setting (for lists): `claude config add <key> <value>`
+- Remove from a setting (for lists): `claude config remove <key> <value>`
 
 By default `config` changes your project configuration. To manage your global
 configuration, use the `--global` (or `-g`) flag.

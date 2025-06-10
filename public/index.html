@@ -5,11 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI Agent Manager</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {},
+        },
+      };
+    </script>
+    <script src="https://unpkg.com/alpinejs" defer></script>
     <script
-      defer
-      src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"
+      src="https://cdn.socket.io/4.8.1/socket.io.min.js"
+      integrity="sha384-mkQ3/7FUtcGyoppY6bz/PORYoGqOl7/aSUMn2ymDOJcapfS6PHqxhRTMh1RR0Q6+"
+      crossorigin="anonymous"
     ></script>
-    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -20,34 +30,43 @@
       [x-cloak] {
         display: none !important;
       }
+
       body {
         font-family: "JetBrains Mono", monospace;
       }
+
       .terminal-text {
         font-family: "JetBrains Mono", monospace;
         font-size: 0.75rem;
         line-height: 1.4;
       }
+
       .scrollbar-thin::-webkit-scrollbar {
         width: 4px;
         height: 4px;
       }
+
       .scrollbar-thin::-webkit-scrollbar-track {
         background: rgba(0, 0, 0, 0.1);
       }
+
       .scrollbar-thin::-webkit-scrollbar-thumb {
         background: rgba(0, 0, 0, 0.3);
         border-radius: 2px;
       }
+
       .dark .scrollbar-thin::-webkit-scrollbar-track {
         background: rgba(255, 255, 255, 0.05);
       }
+
       .dark .scrollbar-thin::-webkit-scrollbar-thumb {
         background: rgba(255, 255, 255, 0.2);
       }
+
       .editor-line {
         counter-increment: line;
       }
+
       .editor-line::before {
         content: counter(line);
         display: inline-block;
@@ -57,17 +76,13 @@
         color: #71717a;
         user-select: none;
       }
+
       .file-tree-item:hover {
         background: rgba(255, 255, 255, 0.05);
       }
     </style>
   </head>
-  <body
-    x-data="agentManager"
-    x-init="init()"
-    :class="darkMode ? 'dark' : ''"
-    class="h-screen overflow-hidden"
-  >
+  <body x-data="agentManager" x-init="init()" class="h-screen overflow-hidden">
     <div
       class="h-full bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col"
     >
@@ -76,25 +91,25 @@
         class="bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 px-3 py-1.5 flex items-center justify-between"
       >
         <div class="flex items-center space-x-3">
-          <h1 class="text-lg font-semibold">AI Agent Manager</h1>
-          <nav class="flex space-x-1">
+          <h1 class="font-semibold font-sans text-xs">AI Agent Manager</h1>
+          <nav class="flex gap-1 items-center justify-center mx-auto">
             <button
               @click="currentView = 'sessions'"
-              :class="currentView === 'sessions' ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'"
+              :class="currentView === 'sessions' ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-blue-300' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'"
               class="px-2 py-0.5 rounded text-xs font-medium transition-colors"
             >
               Sessions
             </button>
             <button
               @click="currentView = 'todos'"
-              :class="currentView === 'todos' ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'"
+              :class="currentView === 'todos' ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-blue-300' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'"
               class="px-2 py-0.5 rounded text-xs font-medium transition-colors"
             >
               All TODOs
             </button>
             <button
               @click="currentView = 'dashboard'"
-              :class="currentView === 'dashboard' ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'"
+              :class="currentView === 'dashboard' ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-blue-300' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'"
               class="px-2 py-0.5 rounded text-xs font-medium transition-colors"
             >
               Dashboard
@@ -102,11 +117,6 @@
           </nav>
         </div>
         <div class="flex items-center space-x-3">
-          <div class="text-xs text-zinc-600 dark:text-zinc-400">
-            <span class="font-medium">Total Cost:</span> $<span
-              x-text="totalCost.toFixed(2)"
-            ></span>
-          </div>
           <div
             x-show="connectionStatus !== 'connected'"
             class="flex items-center space-x-1"
@@ -116,7 +126,7 @@
               'bg-yellow-500': connectionStatus === 'connecting',
               'bg-red-500': connectionStatus === 'disconnected'
             }"
-              class="w-2 h-2 rounded-full animate-pulse"
+              class="size-2 rounded-full animate-pulse"
             ></div>
             <span
               class="text-xs text-zinc-600 dark:text-zinc-400"
@@ -124,7 +134,7 @@
             ></span>
           </div>
           <button
-            @click="darkMode = !darkMode"
+            @click="toggleDarkMode()"
             class="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800"
           >
             <svg
@@ -166,27 +176,27 @@
           <div class="flex flex-1">
             <!-- Left Sidebar -->
             <aside
-              class="w-72 bg-zinc-100 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col"
+              class="w-80 bg-zinc-100 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col"
             >
               <!-- New Session Input -->
               <div class="p-3 border-b border-zinc-200 dark:border-zinc-800">
                 <form @submit.prevent="createSession()">
+                  <textarea
+                    @keydown.ctrl.n.prevent="$el.focus()"
+                    x-model="newSessionTask"
+                    placeholder="Task instructions (Ctrl+N)"
+                    class="w-full px-2 py-1.5 text-xs bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent resize-none"
+                    rows="5"
+                  ></textarea>
                   <input
                     x-model="newSessionName"
-                    @keydown.ctrl.n.prevent="$el.focus()"
                     type="text"
-                    placeholder="Session name... (Ctrl+N)"
+                    placeholder="Name"
                     class="w-full px-2 py-1.5 text-xs bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent mb-2"
                   />
-                  <textarea
-                    x-model="newSessionTask"
-                    placeholder="Task description for Claude..."
-                    class="w-full px-2 py-1.5 text-xs bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent resize-none"
-                    rows="3"
-                  ></textarea>
                   <button
                     type="submit"
-                    :disabled="!newSessionName.trim() || !newSessionTask.trim() || creatingSession"
+                    :disabled="!newSessionTask.trim() || creatingSession"
                     class="w-full mt-2 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <span x-show="!creatingSession">Create Session</span>
@@ -213,10 +223,16 @@
                     class="p-3 border-b border-zinc-200 dark:border-zinc-800 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
                   >
                     <div class="flex items-start justify-between mb-1.5">
-                      <h3
-                        class="font-medium text-xs truncate flex-1"
-                        x-text="session.name"
-                      ></h3>
+                      <div class="flex-1 min-w-0">
+                        <h3
+                          class="font-medium text-xs truncate"
+                          x-text="session.name"
+                        ></h3>
+                        <p
+                          class="text-xs text-zinc-500 dark:text-zinc-400 truncate"
+                          x-text="`ID: ${session.id.substring(0, 8)}`"
+                        ></p>
+                      </div>
                       <div class="flex items-center space-x-1">
                         <span
                           :class="{
@@ -233,7 +249,11 @@
 
                     <!-- Mini Terminal Preview -->
                     <div
-                      class="bg-zinc-950 text-emerald-400 p-1.5 rounded text-xs terminal-text h-16 overflow-hidden"
+                      :class="{
+                        'bg-zinc-950 text-emerald-400': session.status !== 'error',
+                        'bg-red-950/30 text-red-400': session.status === 'error'
+                      }"
+                      class="p-1.5 rounded text-xs terminal-text h-16 overflow-hidden"
                     >
                       <template x-for="line in session.preview" :key="line">
                         <div x-text="line" class="truncate opacity-80"></div>
@@ -337,7 +357,7 @@
                         x-show="selectedSession.status === 'active'"
                         class="animate-pulse text-zinc-600 mt-2"
                       >
-                        Claude is thinking...
+                        Waiting for response...
                       </div>
                     </div>
 
@@ -596,12 +616,10 @@
                       </button>
                     </div>
                     <div class="text-xs text-zinc-600 dark:text-zinc-400">
-                      Tokens:
+                      Status:
                       <span
-                        x-text="(selectedSession.tokensUsed || 0).toLocaleString()"
-                      ></span>
-                      | Cost: $<span
-                        x-text="(selectedSession.cost || 0).toFixed(3)"
+                        x-text="selectedSession.status"
+                        class="capitalize"
                       ></span>
                     </div>
                   </div>
@@ -687,16 +705,6 @@
                   class="text-2xl font-bold mt-1"
                   x-text="totalTokens.toLocaleString()"
                 ></p>
-              </div>
-              <div class="bg-white dark:bg-zinc-900 rounded-lg shadow p-4">
-                <h3
-                  class="text-xs font-medium text-zinc-500 dark:text-zinc-400"
-                >
-                  Total Cost
-                </h3>
-                <p class="text-2xl font-bold mt-1">
-                  $<span x-text="totalCost.toFixed(2)"></span>
-                </p>
               </div>
               <div class="bg-white dark:bg-zinc-900 rounded-lg shadow p-4">
                 <h3
@@ -820,8 +828,17 @@
           socket: null,
 
           init() {
-            // Set dark mode by default
-            this.darkMode = true;
+            // Load dark mode preference from localStorage or default to true
+            const savedDarkMode = localStorage.getItem("darkMode");
+            this.darkMode =
+              savedDarkMode === null ? true : savedDarkMode === "true";
+
+            // Apply dark mode immediately
+            if (this.darkMode) {
+              document.documentElement.classList.add("dark");
+            } else {
+              document.documentElement.classList.remove("dark");
+            }
 
             // Initialize socket connection
             this.connectToBackend();
@@ -836,7 +853,7 @@
               }
               if (e.ctrlKey && e.key === "d") {
                 e.preventDefault();
-                this.darkMode = !this.darkMode;
+                this.toggleDarkMode();
               }
               if (e.key === "?") {
                 this.showShortcuts = true;
@@ -864,27 +881,37 @@
               this.addActivity("Disconnected from backend");
             });
 
-            // Handle sessions list
+            // Handle sessions list (only on initial load)
             this.socket.on("sessions:list", (sessions) => {
-              console.log("Received sessions:", sessions);
-              this.sessions = sessions.map((s) => ({
-                ...s,
-                preview: s.preview || ["> Waiting for output..."],
-                terminalOutput: s.terminalOutput || [],
-                commits: s.commits || [],
-                todos: s.todos || [],
-                files: s.files || [],
-              }));
+              console.log("Received initial sessions list:", sessions);
+              // Only set sessions if we don't have any (initial load)
+              if (this.sessions.length === 0) {
+                this.sessions = sessions.map((s) => ({
+                  ...s,
+                  preview: s.preview || ["> Waiting for output..."],
+                  terminalOutput: s.terminalOutput || [],
+                  commits: s.commits || [],
+                  todos: s.todos || [],
+                  files: s.files || [],
+                }));
 
-              // Select first session if none selected
-              if (this.sessions.length > 0 && !this.selectedSession) {
-                this.selectSession(this.sessions[0].id);
+                // Select first session if none selected
+                if (this.sessions.length > 0 && !this.selectedSession) {
+                  this.selectSession(this.sessions[0].id);
+                }
               }
             });
 
             // Handle new session creation
             this.socket.on("session:created", (session) => {
-              console.log("Session created:", session);
+              console.log("Session created event received:", session);
+
+              // Check if session already exists to prevent duplicates
+              if (this.sessions.find((s) => s.id === session.id)) {
+                console.log("Session already exists, skipping:", session.id);
+                return;
+              }
+
               const newSession = {
                 ...session,
                 preview: ["> Initializing..."],
@@ -893,56 +920,52 @@
                 todos: [],
                 files: [],
               };
+              console.log("Adding session to list:", newSession);
               this.sessions.unshift(newSession);
+              console.log("Sessions after adding:", this.sessions);
               this.selectSession(session.id);
               this.addActivity(`Created session: ${session.name}`);
               this.creatingSession = false;
+
+              // Process any pending messages for this session
+              if (this.pendingMessages) {
+                const messages = this.pendingMessages.filter(
+                  (m) => m.sessionId === session.id,
+                );
+                messages.forEach((data) => {
+                  console.log(
+                    "Processing pending message for session:",
+                    session.id,
+                  );
+                  this.handleClaudeMessage(data);
+                });
+                // Remove processed messages
+                this.pendingMessages = this.pendingMessages.filter(
+                  (m) => m.sessionId !== session.id,
+                );
+              }
             });
 
             // Handle Claude messages
             this.socket.on("claude:message", (data) => {
-              console.log("Claude message:", data);
+              console.log("Claude message received:", data);
+
               const session = this.sessions.find(
                 (s) => s.id === data.sessionId,
               );
-              if (session) {
-                const message = data.message;
-
-                // Update terminal output based on message type
-                if (message.type === "assistant") {
-                  const content = message.message?.content || "";
-                  if (content) {
-                    session.terminalOutput.push({
-                      id: Date.now(),
-                      type: "assistant",
-                      content:
-                        this.escapeHtml(content).substring(0, 500) +
-                        (content.length > 500 ? "..." : ""),
-                    });
-                  }
-                } else if (message.type === "user") {
-                  const content = message.message?.content || "";
-                  if (content) {
-                    session.terminalOutput.push({
-                      id: Date.now(),
-                      type: "user",
-                      content:
-                        "> " + this.escapeHtml(content).substring(0, 200),
-                    });
-                  }
-                }
-
-                // Update preview (last 3 lines)
-                session.preview = session.terminalOutput
-                  .slice(-3)
-                  .map((t) => t.content.substring(0, 50));
-
-                // Update cost and tokens
-                if (message.cost_usd) {
-                  session.cost = (session.cost || 0) + message.cost_usd;
-                  session.tokensUsed = (session.tokensUsed || 0) + 1000; // Estimate
-                }
+              if (!session) {
+                console.warn(
+                  "Session not found for Claude message, queueing:",
+                  data.sessionId,
+                );
+                // Queue the message for later processing
+                this.pendingMessages = this.pendingMessages || [];
+                this.pendingMessages.push(data);
+                return;
               }
+
+              // Process the message using the shared handler
+              this.handleClaudeMessage(data);
             });
 
             // Handle session status updates
@@ -989,11 +1012,15 @@
                 (s) => s.id === data.sessionId,
               );
               if (session) {
+                session.status = "error";
                 session.terminalOutput.push({
                   id: Date.now(),
                   type: "error",
                   content: `Error: ${data.error}`,
                 });
+                this.addActivity(
+                  `Session ${session.name} encountered an error`,
+                );
               }
             });
 
@@ -1059,14 +1086,80 @@
             }
           },
 
+          // Dark mode toggle
+          toggleDarkMode() {
+            this.darkMode = !this.darkMode;
+            localStorage.setItem("darkMode", this.darkMode);
+            if (this.darkMode) {
+              document.documentElement.classList.add("dark");
+            } else {
+              document.documentElement.classList.remove("dark");
+            }
+          },
+
+          // Handle Claude messages
+          handleClaudeMessage(data) {
+            const session = this.sessions.find((s) => s.id === data.sessionId);
+            if (!session) {
+              console.warn(
+                "Session still not found for message:",
+                data.sessionId,
+              );
+              return;
+            }
+
+            const message = data.message;
+
+            // Update terminal output based on message type
+            if (message.type === "assistant") {
+              const content = message.message?.content || "";
+              if (content) {
+                session.terminalOutput.push({
+                  id: Date.now(),
+                  type: "assistant",
+                  content:
+                    this.escapeHtml(content).substring(0, 500) +
+                    (content.length > 500 ? "..." : ""),
+                });
+              }
+            } else if (message.type === "result") {
+              // Handle result messages from Claude
+              const content = message.result || "Task completed";
+              session.terminalOutput.push({
+                id: Date.now(),
+                type: "assistant",
+                content: this.escapeHtml(content),
+              });
+              // Update preview
+              session.preview = ["✓ " + content.substring(0, 50) + "..."];
+            } else if (message.type === "user") {
+              const content = message.message?.content || "";
+              if (content) {
+                session.terminalOutput.push({
+                  id: Date.now(),
+                  type: "user",
+                  content: this.escapeHtml(content),
+                });
+              }
+            }
+
+            // Update preview with last few outputs
+            if (message.type !== "result") {
+              session.preview = session.terminalOutput
+                .slice(-3)
+                .map((o) => o.content.substring(0, 60) + "...");
+            }
+
+            // Message processed
+          },
+
           // Session Management
           createSession() {
-            if (!this.newSessionName.trim() || !this.newSessionTask.trim())
-              return;
+            if (!this.newSessionTask.trim()) return;
 
             this.creatingSession = true;
             this.socket.emit("session:create", {
-              name: this.newSessionName,
+              name: this.newSessionName.trim() || undefined,
               task: this.newSessionTask,
             });
 
@@ -1257,13 +1350,6 @@
           get totalTokens() {
             return this.sessions.reduce(
               (sum, session) => sum + (session.tokensUsed || 0),
-              0,
-            );
-          },
-
-          get totalCost() {
-            return this.sessions.reduce(
-              (sum, session) => sum + (session.cost || 0),
               0,
             );
           },

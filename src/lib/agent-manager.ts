@@ -1,47 +1,73 @@
-import { spawn, ChildProcess } from "child_process";
 import { EventEmitter } from "events";
 import { v4 as uuidv4 } from "uuid";
 import simpleGit, { SimpleGit } from "simple-git";
 import * as fs from "fs/promises";
 import * as path from "path";
 import winston from "winston";
-import { AgentSession, ClaudeMessage, FileNode, GitCommit } from "../types/agent";
+import { execa } from "execa";
+import {
+  AgentSession,
+  ClaudeMessage,
+  FileNode,
+  GitCommit,
+} from "../types/agent";
 
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || "info",
   format: winston.format.combine(
-    winston.format.timestamp(),
+    winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
     winston.format.errors({ stack: true }),
-    winston.format.json()
+    winston.format.json(),
   ),
   defaultMeta: { service: "agent-manager" },
   transports: [
-    new winston.transports.File({ 
-      filename: "logs/error.log", 
+    new winston.transports.File({
+      filename: "logs/error.log",
       level: "error",
       maxsize: 5242880, // 5MB
       maxFiles: 5,
     }),
-    new winston.transports.File({ 
+    new winston.transports.File({
       filename: "logs/combined.log",
       maxsize: 5242880, // 5MB
       maxFiles: 10,
     }),
-    new winston.transports.File({ 
+    new winston.transports.File({
       filename: "logs/sessions.log",
       level: "info",
       format: winston.format.combine(
-        winston.format.timestamp(),
+        winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
         winston.format.label({ label: "SESSION" }),
-        winston.format.json()
+        winston.format.json(),
       ),
       maxsize: 5242880, // 5MB
       maxFiles: 5,
     }),
     new winston.transports.Console({
+      level: process.env.NODE_ENV === "production" ? "warn" : "info",
       format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.simple()
+        winston.format.timestamp({ format: "HH:mm:ss" }),
+        winston.format.colorize({ all: true }),
+        winston.format.printf(
+          ({ timestamp, level, message, service, ...meta }) => {
+            let output = `${timestamp} [${service || "app"}] ${level}: ${message}`;
+
+            // Format additional metadata
+            const metaKeys = Object.keys(meta);
+            if (metaKeys.length > 0) {
+              const cleanMeta = { ...meta };
+              delete cleanMeta.timestamp;
+              delete cleanMeta.service;
+
+              if (Object.keys(cleanMeta).length > 0) {
+                // Pretty print JSON metadata
+                output += "\n" + JSON.stringify(cleanMeta, null, 2);
+              }
+            }
+
+            return output;
+          },
+        ),
       ),
     }),
   ],
@@ -49,7 +75,7 @@ const logger = winston.createLogger({
 
 export class AgentManager extends EventEmitter {
   private sessions: Map<string, AgentSession> = new Map();
-  private processes: Map<string, ChildProcess> = new Map();
+  private processes: Map<string, any> = new Map(); // execa subprocess
   private git: SimpleGit;
   private baseRepoPath: string;
   private worktreesPath: string;
@@ -62,7 +88,9 @@ export class AgentManager extends EventEmitter {
     this.baseRepoPath = baseRepoPath;
     this.worktreesPath = path.join(this.baseRepoPath, ".worktrees");
     this.stateFilePath = path.join(this.baseRepoPath, "agent-state.json");
-    this.debugMode = process.env.CLAUDE_DEBUG_MODE === "true" || process.env.ANTHROPIC_LOG === "debug";
+    this.debugMode =
+      process.env.CLAUDE_DEBUG_MODE === "true" ||
+      process.env.ANTHROPIC_LOG === "debug";
     this.git = simpleGit(this.baseRepoPath);
   }
 
@@ -96,18 +124,24 @@ export class AgentManager extends EventEmitter {
 
     // Start auto-save timer
     this.startAutoSave();
-    
-    logger.info("AgentManager initialized", {
+
+    logger.info("AgentManager ready", {
       baseRepoPath: this.baseRepoPath,
-      stateFilePath: this.stateFilePath,
       existingSessions: this.sessions.size,
-      debugMode: this.debugMode
+      debugMode: this.debugMode,
     });
   }
 
-  async createSession(name: string, task: string): Promise<AgentSession> {
+  async createSession(
+    name: string | undefined,
+    task: string,
+  ): Promise<AgentSession> {
     const sessionId = uuidv4();
-    const branchName = `agent/${name.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`;
+    // Generate default name if not provided
+    const sessionName =
+      name ||
+      `session-${new Date().toISOString().split("T")[0]}-${sessionId.substring(0, 8)}`;
+    const branchName = `agent/${sessionName.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`;
     const worktreePath = path.join(this.worktreesPath, sessionId);
 
     // Create git worktree
@@ -120,7 +154,7 @@ export class AgentManager extends EventEmitter {
 
     const session: AgentSession = {
       id: sessionId,
-      name,
+      name: sessionName,
       branch: branchName,
       worktreePath,
       status: "active",
@@ -136,11 +170,10 @@ export class AgentManager extends EventEmitter {
 
     // Log session creation
     logger.info("Session created", {
-      sessionId,
+      sessionId: sessionId.substring(0, 8),
       name,
       branch: branchName,
-      worktreePath,
-      task: task.substring(0, 100) + (task.length > 100 ? '...' : '')
+      taskPreview: task.substring(0, 80) + (task.length > 80 ? "..." : ""),
     });
 
     // Save state after session creation
@@ -156,75 +189,97 @@ export class AgentManager extends EventEmitter {
     const session = this.sessions.get(sessionId);
     if (!session) throw new Error("Session not found");
 
-    const claudeProcess = spawn(
-      "claude",
-      [
-        "-p",
-        task,
-        "--output-format",
-        "stream-json",
-        "--max-turns",
-        "50",
-        "--append-system-prompt",
-        `You are working in ${session.worktreePath}. Create git commits frequently.`,
-        "--allowedTools",
-        "Bash,FileEditor,FileViewer",
-      ],
-      {
+    try {
+      logger.info("Starting Claude process", {
+        sessionId: sessionId.substring(0, 8),
+        task: task.substring(0, 50),
+      });
+
+      // Match claude-code-js implementation
+      const args = ["--output-format", "json", "-p", task];
+
+      logger.debug("Executing Claude command", {
+        sessionId: sessionId.substring(0, 8),
         cwd: session.worktreePath,
-        stdio: ['pipe', 'pipe', 'pipe'],
+        command: "claude",
+        args: args,
+      });
+
+      const result = await execa("claude", args, {
+        cwd: session.worktreePath,
         env: {
-          // @ts-ignore: process is always available in Node.js
           ...process.env,
-          // @ts-ignore: process is always available in Node.js  
-          ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY!,
-          PYTHONUNBUFFERED: "1",
-          NODE_ENV: "production",
-          ...(this.debugMode && { ANTHROPIC_LOG: "debug" }),
+          ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
         },
-      },
-    );
+        stdin: "ignore",
+        stdout: "pipe",
+        stderr: "pipe",
+        reject: false,
+        timeout: 60000,
+        shell: false,
+      });
 
-    let buffer = "";
+      logger.debug("Claude process result", {
+        sessionId: sessionId.substring(0, 8),
+        exitCode: result.exitCode,
+        stdout: result.stdout?.substring(0, 200),
+        stderr: result.stderr,
+        failed: result.failed,
+        timedOut: result.timedOut,
+      });
 
-    claudeProcess.stdout.on("data", (data) => {
-      buffer += data.toString();
-      
-      // Handle different line endings: \r\n, \n, \r
-      const lines = buffer.split(/\r\n|\r|\n/);
-      buffer = lines.pop() || "";
+      if (result.exitCode === 0 && result.stdout) {
+        try {
+          // Parse JSON response like claude-code-js does
+          let message: ClaudeMessage;
+          const stdoutJson = JSON.parse(result.stdout);
 
-      for (const line of lines) {
-        const trimmedLine = line.trim();
-        if (trimmedLine) {
-          try {
-            const message: ClaudeMessage = JSON.parse(trimmedLine);
-            this.handleClaudeMessage(sessionId, message);
-            logger.debug(`Parsed Claude message for ${sessionId}:`, message.type);
-          } catch (error) {
-            logger.error(`Failed to parse Claude message for ${sessionId}:`, {
-              error: (error as Error).message,
-              line: trimmedLine.substring(0, 100) + (trimmedLine.length > 100 ? '...' : ''),
-            });
-            // Still emit raw output for debugging
-            this.emit("session:raw_output", { sessionId, data: trimmedLine });
+          if (Array.isArray(stdoutJson)) {
+            message = stdoutJson[stdoutJson.length - 1] as ClaudeMessage;
+          } else {
+            message = stdoutJson as ClaudeMessage;
           }
+
+          this.handleClaudeMessage(sessionId, message);
+
+          // Update session status based on message type
+          if (message.type === "result") {
+            this.updateSessionStatus(sessionId, "completed");
+          }
+        } catch (parseError) {
+          logger.error("Failed to parse Claude response", {
+            sessionId: sessionId.substring(0, 8),
+            error: (parseError as Error).message,
+            stdout: result.stdout,
+          });
+          this.emit("session:error", {
+            sessionId,
+            error: "Failed to parse Claude response",
+          });
+          this.updateSessionStatus(sessionId, "error");
         }
+      } else {
+        // Handle error
+        const errorMessage = result.stderr || result.stdout || "Unknown error";
+        logger.error("Claude process failed", {
+          sessionId: sessionId.substring(0, 8),
+          exitCode: result.exitCode,
+          error: errorMessage,
+        });
+        this.emit("session:error", { sessionId, error: errorMessage });
+        this.updateSessionStatus(sessionId, "error");
       }
-    });
-
-    claudeProcess.stderr.on("data", (data) => {
-      logger.error(`Claude stderr for ${sessionId}:`, data.toString());
-      this.emit("session:error", { sessionId, error: data.toString() });
-    });
-
-    claudeProcess.on("exit", (code) => {
-      logger.info(`Claude process exited for ${sessionId} with code ${code}`);
-      this.updateSessionStatus(sessionId, "completed");
-      this.processes.delete(sessionId);
-    });
-
-    this.processes.set(sessionId, claudeProcess);
+    } catch (error) {
+      logger.error("Failed to start Claude process", {
+        sessionId: sessionId.substring(0, 8),
+        error: (error as Error).message,
+      });
+      this.emit("session:error", {
+        sessionId,
+        error: `Failed to start Claude: ${(error as Error).message}`,
+      });
+      this.updateSessionStatus(sessionId, "error");
+    }
   }
 
   private handleClaudeMessage(sessionId: string, message: ClaudeMessage) {
@@ -237,7 +292,7 @@ export class AgentManager extends EventEmitter {
       messageType: message.type,
       subtype: message.subtype,
       cost: message.cost_usd,
-      sessionName: session.name
+      sessionName: session.name,
     });
 
     // Update session with Claude session ID
@@ -245,7 +300,7 @@ export class AgentManager extends EventEmitter {
       session.claudeSessionId = message.session_id;
       logger.info("Claude session ID assigned", {
         sessionId,
-        claudeSessionId: message.session_id
+        claudeSessionId: message.session_id,
       });
     }
 
@@ -275,7 +330,7 @@ export class AgentManager extends EventEmitter {
           logger.info("Session completed successfully", {
             sessionId,
             cost: session.cost,
-            duration: Date.now() - session.createdAt.getTime()
+            duration: Date.now() - session.createdAt.getTime(),
           });
           this.emit("session:complete", { sessionId, result: message.result });
         } else if (message.subtype === "error_max_turns") {
@@ -283,7 +338,7 @@ export class AgentManager extends EventEmitter {
           logger.warn("Session needs intervention - max turns reached", {
             sessionId,
             turns: message.num_turns,
-            cost: session.cost
+            cost: session.cost,
           });
           this.emit("session:intervention", {
             sessionId,
@@ -313,78 +368,86 @@ export class AgentManager extends EventEmitter {
     const session = this.sessions.get(sessionId);
     if (!session) throw new Error("Session not found");
 
-    const process = this.processes.get(sessionId);
-    if (process && session.status === "paused") {
-      process.kill("SIGCONT");
-      this.updateSessionStatus(sessionId, "active");
-    } else if (!process && session.claudeSessionId) {
-      // Resume with new process
-      const args = [
-        "--resume",
-        session.claudeSessionId,
-        "--output-format",
-        "stream-json",
-      ];
+    if (!session.claudeSessionId) {
+      throw new Error("No Claude session ID to resume");
+    }
+
+    try {
+      logger.info("Resuming Claude session", {
+        sessionId: sessionId.substring(0, 8),
+        claudeSessionId: session.claudeSessionId,
+      });
+
+      // Build args for resume matching claude-code-js pattern
+      const args = ["--output-format", "json"];
+
       if (prompt) {
         args.push("-p", prompt);
       }
 
-      const claudeProcess = spawn("claude", args, {
+      args.push("--resume", session.claudeSessionId);
+
+      // Run Claude with resume
+      const result = await execa("claude", args, {
         cwd: session.worktreePath,
-        stdio: ['pipe', 'pipe', 'pipe'],
         env: {
-          // @ts-ignore: process is always available in Node.js
           ...process.env,
-          // @ts-ignore: process is always available in Node.js  
-          ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY!,
-          PYTHONUNBUFFERED: "1",
-          NODE_ENV: "production",
-          ...(this.debugMode && { ANTHROPIC_LOG: "debug" }),
+          ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
         },
+        stdin: "ignore",
+        stdout: "pipe",
+        stderr: "pipe",
+        reject: false,
+        timeout: 60000,
       });
 
-      // Set up the same event handlers as startClaudeProcess
-      let buffer = "";
+      if (result.exitCode === 0 && result.stdout) {
+        try {
+          // Parse the JSON response
+          let message: ClaudeMessage;
+          const parsed = JSON.parse(result.stdout);
 
-      claudeProcess.stdout.on("data", (data) => {
-        buffer += data.toString();
-        
-        // Handle different line endings: \r\n, \n, \r
-        const lines = buffer.split(/\r\n|\r|\n/);
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          const trimmedLine = line.trim();
-          if (trimmedLine) {
-            try {
-              const message: ClaudeMessage = JSON.parse(trimmedLine);
-              this.handleClaudeMessage(sessionId, message);
-              logger.debug(`Parsed Claude message for ${sessionId}:`, message.type);
-            } catch (error) {
-              logger.error(`Failed to parse Claude message for ${sessionId}:`, {
-                error: (error as Error).message,
-                line: trimmedLine.substring(0, 100) + (trimmedLine.length > 100 ? '...' : ''),
-              });
-              // Still emit raw output for debugging
-              this.emit("session:raw_output", { sessionId, data: trimmedLine });
-            }
+          // Handle array or single object response
+          if (Array.isArray(parsed)) {
+            message = parsed[parsed.length - 1];
+          } else {
+            message = parsed;
           }
+
+          this.handleClaudeMessage(sessionId, message);
+
+          // Update session status
+          if (message.type === "result") {
+            this.updateSessionStatus(sessionId, "completed");
+          }
+        } catch (parseError) {
+          logger.error("Failed to parse Claude resume response", {
+            sessionId: sessionId.substring(0, 8),
+            error: (parseError as Error).message,
+          });
+          this.emit("session:error", {
+            sessionId,
+            error: "Failed to parse Claude response",
+          });
         }
+      } else {
+        // Handle error
+        const errorMessage = result.stderr || result.stdout || "Unknown error";
+        logger.error("Claude resume failed", {
+          sessionId: sessionId.substring(0, 8),
+          error: errorMessage,
+        });
+        this.emit("session:error", { sessionId, error: errorMessage });
+      }
+    } catch (error) {
+      logger.error("Failed to resume Claude session", {
+        sessionId: sessionId.substring(0, 8),
+        error: (error as Error).message,
       });
-
-      claudeProcess.stderr.on("data", (data) => {
-        logger.error(`Claude stderr for ${sessionId}:`, data.toString());
-        this.emit("session:error", { sessionId, error: data.toString() });
+      this.emit("session:error", {
+        sessionId,
+        error: `Failed to resume: ${(error as Error).message}`,
       });
-
-      claudeProcess.on("exit", (code) => {
-        logger.info(`Claude process exited for ${sessionId} with code ${code}`);
-        this.updateSessionStatus(sessionId, "completed");
-        this.processes.delete(sessionId);
-      });
-
-      this.processes.set(sessionId, claudeProcess);
-      this.updateSessionStatus(sessionId, "active");
     }
   }
 
@@ -481,19 +544,21 @@ export class AgentManager extends EventEmitter {
       session.status = status;
       session.updatedAt = new Date();
       this.sessions.set(sessionId, session);
-      
+
       logger.info("Session status updated", {
         sessionId,
         oldStatus,
         newStatus: status,
-        sessionName: session.name
+        sessionName: session.name,
       });
-      
+
       this.emit("session:status", { sessionId, status });
-      
+
       // Save state on status changes
-      this.saveState().catch(error => 
-        logger.error("Failed to save state after status update", { error: (error as Error).message })
+      this.saveState().catch((error) =>
+        logger.error("Failed to save state after status update", {
+          error: (error as Error).message,
+        }),
       );
     }
   }
@@ -509,11 +574,11 @@ export class AgentManager extends EventEmitter {
   setDebugMode(enabled: boolean): void {
     const oldDebugMode = this.debugMode;
     this.debugMode = enabled;
-    
+
     logger.info("Debug mode changed", {
       oldDebugMode,
       newDebugMode: enabled,
-      anthropicLogLevel: enabled ? "debug" : "not set"
+      anthropicLogLevel: enabled ? "debug" : "not set",
     });
   }
 
@@ -535,7 +600,9 @@ export class AgentManager extends EventEmitter {
       };
 
       await fs.writeFile(this.stateFilePath, JSON.stringify(state, null, 2));
-      logger.debug("State saved successfully", { sessionCount: this.sessions.size });
+      logger.debug("State saved successfully", {
+        sessionCount: this.sessions.size,
+      });
     } catch (error) {
       logger.error("Failed to save state", { error: (error as Error).message });
     }
@@ -554,27 +621,32 @@ export class AgentManager extends EventEmitter {
             createdAt: new Date(sessionData.createdAt),
             updatedAt: new Date(sessionData.updatedAt),
             // Mark as completed if it was active when saved
-            status: sessionData.status === "active" ? "completed" : sessionData.status,
+            status:
+              sessionData.status === "active"
+                ? "completed"
+                : sessionData.status,
           };
 
           this.sessions.set(session.id, session);
-          
+
           logger.info("Restored session", {
             sessionId: session.id,
             name: session.name,
             status: session.status,
-            branch: session.branch
+            branch: session.branch,
           });
         }
       }
 
-      logger.info("State loaded successfully", { 
+      logger.info("State loaded successfully", {
         sessionCount: this.sessions.size,
-        stateTimestamp: state.timestamp 
+        stateTimestamp: state.timestamp,
       });
     } catch (error) {
       if ((error as any).code !== "ENOENT") {
-        logger.error("Failed to load state", { error: (error as Error).message });
+        logger.error("Failed to load state", {
+          error: (error as Error).message,
+        });
       } else {
         logger.info("No existing state file found, starting fresh");
       }
@@ -598,7 +670,10 @@ export class AgentManager extends EventEmitter {
     }
   }
 
-  async resumeRestoredSession(sessionId: string, prompt?: string): Promise<boolean> {
+  async resumeRestoredSession(
+    sessionId: string,
+    prompt?: string,
+  ): Promise<boolean> {
     const session = this.sessions.get(sessionId);
     if (!session || !session.claudeSessionId) {
       return false;
@@ -607,11 +682,11 @@ export class AgentManager extends EventEmitter {
     try {
       // Check if worktree still exists
       await fs.access(session.worktreePath);
-      
+
       logger.info("Resuming restored session", {
         sessionId,
         claudeSessionId: session.claudeSessionId,
-        name: session.name
+        name: session.name,
       });
 
       await this.resumeSession(sessionId, prompt);
@@ -619,7 +694,7 @@ export class AgentManager extends EventEmitter {
     } catch (error) {
       logger.error("Failed to resume restored session", {
         sessionId,
-        error: (error as Error).message
+        error: (error as Error).message,
       });
       return false;
     }
@@ -627,21 +702,21 @@ export class AgentManager extends EventEmitter {
 
   async shutdown(): Promise<void> {
     logger.info("Shutting down AgentManager...");
-    
+
     // Stop auto-save
     this.stopAutoSave();
-    
+
     // Save final state
     await this.saveState();
-    
+
     // Stop all active processes
     for (const [sessionId, process] of this.processes.entries()) {
       logger.info("Stopping process for session", { sessionId });
       process.kill("SIGTERM");
     }
-    
+
     this.processes.clear();
-    
+
     logger.info("AgentManager shutdown complete");
   }
 }

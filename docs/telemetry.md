@@ -51,8 +51,8 @@ Administrators can configure OpenTelemetry settings for all users through the ma
 
 The managed settings file is located at:
 
-* macOS: `/Library/Application Support/ClaudeCode/managed-settings.json`
-* Linux: `/etc/claude-code/managed-settings.json`
+- macOS: `/Library/Application Support/ClaudeCode/managed-settings.json`
+- Linux: `/etc/claude-code/managed-settings.json`
 
 Example managed settings configuration:
 
@@ -99,11 +99,11 @@ Example managed settings configuration:
 
 The following environment variables control which attributes are included in metrics to manage cardinality:
 
-| Environment Variable                | Description                                     | Default Value | Example to Disable |
-| ----------------------------------- | ----------------------------------------------- | ------------- | ------------------ |
-| `OTEL_METRICS_INCLUDE_SESSION_ID`   | Include session.id attribute in metrics         | `true`        | `false`            |
-| `OTEL_METRICS_INCLUDE_VERSION`      | Include app.version attribute in metrics        | `false`       | `true`             |
-| `OTEL_METRICS_INCLUDE_ACCOUNT_UUID` | Include user.account\_uuid attribute in metrics | `true`        | `false`            |
+| Environment Variable                | Description                                    | Default Value | Example to Disable |
+| ----------------------------------- | ---------------------------------------------- | ------------- | ------------------ |
+| `OTEL_METRICS_INCLUDE_SESSION_ID`   | Include session.id attribute in metrics        | `true`        | `false`            |
+| `OTEL_METRICS_INCLUDE_VERSION`      | Include app.version attribute in metrics       | `false`       | `true`             |
+| `OTEL_METRICS_INCLUDE_ACCOUNT_UUID` | Include user.account_uuid attribute in metrics | `true`        | `false`            |
 
 These variables help control the cardinality of metrics, which affects storage requirements and query performance in your metrics backend. Lower cardinality generally means better performance and lower storage costs but less granular data for analysis.
 
@@ -172,10 +172,10 @@ Claude Code exports the following metrics:
 
 All metrics share these standard attributes:
 
-* `session.id`: Unique session identifier (controlled by `OTEL_METRICS_INCLUDE_SESSION_ID`)
-* `app.version`: Current Claude Code version (controlled by `OTEL_METRICS_INCLUDE_VERSION`)
-* `organization.id`: Organization UUID (when authenticated)
-* `user.account_uuid`: Account UUID (when authenticated, controlled by `OTEL_METRICS_INCLUDE_ACCOUNT_UUID`)
+- `session.id`: Unique session identifier (controlled by `OTEL_METRICS_INCLUDE_SESSION_ID`)
+- `app.version`: Current Claude Code version (controlled by `OTEL_METRICS_INCLUDE_VERSION`)
+- `organization.id`: Organization UUID (when authenticated)
+- `user.account_uuid`: Account UUID (when authenticated, controlled by `OTEL_METRICS_INCLUDE_ACCOUNT_UUID`)
 
 #### 1. Session Counter
 
@@ -185,7 +185,7 @@ Emitted at the start of each session.
 
 Emitted when code is added or removed.
 
-* Additional attribute: `type` (`"added"` or `"removed"`)
+- Additional attribute: `type` (`"added"` or `"removed"`)
 
 #### 3. Pull Request Counter
 
@@ -199,19 +199,19 @@ Emitted when creating git commits via Claude Code.
 
 Emitted after each API request.
 
-* Additional attribute: `model`
+- Additional attribute: `model`
 
 #### 6. Token Counter
 
 Emitted after each API request.
 
-* Additional attributes: `type` (`"input"`, `"output"`, `"cacheRead"`, `"cacheCreation"`) and `model`
+- Additional attributes: `type` (`"input"`, `"output"`, `"cacheRead"`, `"cacheCreation"`) and `model`
 
 #### 7. Code Edit Tool Decision Counter
 
 Emitted when user accepts or rejects Edit, MultiEdit, Write, or NotebookEdit tool usage.
 
-* Additional attributes: `tool` (tool name: `"Edit"`, `"MultiEdit"`, `"Write"`, `"NotebookEdit"`) and `decision` (`"accept"`, `"reject"`)
+- Additional attributes: `tool` (tool name: `"Edit"`, `"MultiEdit"`, `"Write"`, `"NotebookEdit"`) and `decision` (`"accept"`, `"reject"`)
 
 ### Events
 
@@ -219,69 +219,69 @@ Claude Code exports the following events via OpenTelemetry logs/events (when `OT
 
 #### 1. User Prompt Event
 
-* **Event Name**: `claude_code.user_prompt`
-* **Description**: Logged when a user submits a prompt
-* **Attributes**:
-    * All standard attributes (user.id, session.id, etc.)
-    * `event.name`: `"user_prompt"`
-    * `event.timestamp`: ISO 8601 timestamp
-    * `prompt_length`: Length of the prompt
-    * `prompt`: Prompt content (redacted by default, enable with `OTEL_LOG_USER_PROMPTS=1`)
+- **Event Name**: `claude_code.user_prompt`
+- **Description**: Logged when a user submits a prompt
+- **Attributes**:
+  - All standard attributes (user.id, session.id, etc.)
+  - `event.name`: `"user_prompt"`
+  - `event.timestamp`: ISO 8601 timestamp
+  - `prompt_length`: Length of the prompt
+  - `prompt`: Prompt content (redacted by default, enable with `OTEL_LOG_USER_PROMPTS=1`)
 
 #### 2. Tool Result Event
 
-* **Event Name**: `claude_code.tool_result`
-* **Description**: Logged when a tool completes execution
-* **Attributes**:
-    * All standard attributes
-    * `event.name`: `"tool_result"`
-    * `event.timestamp`: ISO 8601 timestamp
-    * `name`: Name of the tool
-    * `success`: `"true"` or `"false"`
-    * `duration_ms`: Execution time in milliseconds
-    * `error`: Error message (if failed)
+- **Event Name**: `claude_code.tool_result`
+- **Description**: Logged when a tool completes execution
+- **Attributes**:
+  - All standard attributes
+  - `event.name`: `"tool_result"`
+  - `event.timestamp`: ISO 8601 timestamp
+  - `name`: Name of the tool
+  - `success`: `"true"` or `"false"`
+  - `duration_ms`: Execution time in milliseconds
+  - `error`: Error message (if failed)
 
 #### 3. API Request Event
 
-* **Event Name**: `claude_code.api_request`
-* **Description**: Logged for each API request to Claude
-* **Attributes**:
-    * All standard attributes
-    * `event.name`: `"api_request"`
-    * `event.timestamp`: ISO 8601 timestamp
-    * `model`: Model used (e.g., "claude-3-5-sonnet-20241022")
-    * `cost_usd`: Estimated cost in USD
-    * `duration_ms`: Request duration in milliseconds
-    * `input_tokens`: Number of input tokens
-    * `output_tokens`: Number of output tokens
-    * `cache_read_tokens`: Number of tokens read from cache
-    * `cache_creation_tokens`: Number of tokens used for cache creation
+- **Event Name**: `claude_code.api_request`
+- **Description**: Logged for each API request to Claude
+- **Attributes**:
+  - All standard attributes
+  - `event.name`: `"api_request"`
+  - `event.timestamp`: ISO 8601 timestamp
+  - `model`: Model used (e.g., "claude-3-5-sonnet-20241022")
+  - `cost_usd`: Estimated cost in USD
+  - `duration_ms`: Request duration in milliseconds
+  - `input_tokens`: Number of input tokens
+  - `output_tokens`: Number of output tokens
+  - `cache_read_tokens`: Number of tokens read from cache
+  - `cache_creation_tokens`: Number of tokens used for cache creation
 
 #### 4. API Error Event
 
-* **Event Name**: `claude_code.api_error`
-* **Description**: Logged when an API request to Claude fails
-* **Attributes**:
-    * All standard attributes
-    * `event.name`: `"api_error"`
-    * `event.timestamp`: ISO 8601 timestamp
-    * `model`: Model used (e.g., "claude-3-5-sonnet-20241022")
-    * `error`: Error message
-    * `status_code`: HTTP status code (if applicable)
-    * `duration_ms`: Request duration in milliseconds
-    * `attempt`: Attempt number (for retried requests)
+- **Event Name**: `claude_code.api_error`
+- **Description**: Logged when an API request to Claude fails
+- **Attributes**:
+  - All standard attributes
+  - `event.name`: `"api_error"`
+  - `event.timestamp`: ISO 8601 timestamp
+  - `model`: Model used (e.g., "claude-3-5-sonnet-20241022")
+  - `error`: Error message
+  - `status_code`: HTTP status code (if applicable)
+  - `duration_ms`: Request duration in milliseconds
+  - `attempt`: Attempt number (for retried requests)
 
 #### 5. Tool Decision Event
 
-* **Event Name**: `claude_code.tool_decision`
-* **Description**: Logged when a tool permission decision is made (accept/reject)
-* **Attributes**:
-    * All standard attributes
-    * `event.name`: `"tool_decision"`
-    * `event.timestamp`: ISO 8601 timestamp
-    * `tool_name`: Name of the tool (e.g., "Read", "Edit", "MultiEdit", "Write", "NotebookEdit", etc.)
-    * `decision`: Either `"accept"` or `"reject"`
-    * `source`: Decision source - `"config"`, `"user_permanent"`, `"user_temporary"`, `"user_abort"`, or `"user_reject"`
+- **Event Name**: `claude_code.tool_decision`
+- **Description**: Logged when a tool permission decision is made (accept/reject)
+- **Attributes**:
+  - All standard attributes
+  - `event.name`: `"tool_decision"`
+  - `event.timestamp`: ISO 8601 timestamp
+  - `tool_name`: Name of the tool (e.g., "Read", "Edit", "MultiEdit", "Write", "NotebookEdit", etc.)
+  - `decision`: Either `"accept"` or `"reject"`
+  - `source`: Decision source - `"config"`, `"user_permanent"`, `"user_temporary"`, `"user_abort"`, or `"user_reject"`
 
 ## Interpreting Metrics and Events Data
 
@@ -300,8 +300,8 @@ The metrics exported by Claude Code provide valuable insights into usage pattern
 
 The `claude_code.cost.usage` metric helps with:
 
-* Tracking usage trends across teams or individuals
-* Identifying high-usage sessions for optimization
+- Tracking usage trends across teams or individuals
+- Identifying high-usage sessions for optimization
 
 <Note>
   Cost metrics are approximations. For official billing data, refer to your API provider (Anthropic Console, AWS Bedrock, or Google Cloud Vertex).
@@ -311,9 +311,9 @@ The `claude_code.cost.usage` metric helps with:
 
 Common alerts to consider:
 
-* Cost spikes
-* Unusual token consumption
-* High session volume from specific users
+- Cost spikes
+- Unusual token consumption
+- High session volume from specific users
 
 All metrics can be segmented by `user.account_uuid`, `organization.id`, `session.id`, `model`, and `app.version`.
 
@@ -322,10 +322,11 @@ All metrics can be segmented by `user.account_uuid`, `organization.id`, `session
 The event data provides detailed insights into Claude Code interactions:
 
 1. **Tool Usage Patterns**: Analyze tool result events to identify:
-    * Most frequently used tools
-    * Tool success rates
-    * Average tool execution times
-    * Error patterns by tool type
+
+   - Most frequently used tools
+   - Tool success rates
+   - Average tool execution times
+   - Error patterns by tool type
 
 2. **Performance Monitoring**: Track API request durations and tool execution times to identify performance bottlenecks.
 
@@ -335,15 +336,15 @@ Your choice of metrics and logs backends will determine the types of analyses yo
 
 ### For Metrics:
 
-* **Time series databases (e.g., Prometheus)**: Rate calculations, aggregated metrics
-* **Columnar stores (e.g., ClickHouse)**: Complex queries, unique user analysis
-* **Full-featured observability platforms (e.g., Honeycomb, Datadog)**: Advanced querying, visualization, alerting
+- **Time series databases (e.g., Prometheus)**: Rate calculations, aggregated metrics
+- **Columnar stores (e.g., ClickHouse)**: Complex queries, unique user analysis
+- **Full-featured observability platforms (e.g., Honeycomb, Datadog)**: Advanced querying, visualization, alerting
 
 ### For Events/Logs:
 
-* **Log aggregation systems (e.g., Elasticsearch, Loki)**: Full-text search, log analysis
-* **Columnar stores (e.g., ClickHouse)**: Structured event analysis
-* **Full-featured observability platforms (e.g., Honeycomb, Datadog)**: Correlation between metrics and events
+- **Log aggregation systems (e.g., Elasticsearch, Loki)**: Full-text search, log analysis
+- **Columnar stores (e.g., ClickHouse)**: Structured event analysis
+- **Full-featured observability platforms (e.g., Honeycomb, Datadog)**: Correlation between metrics and events
 
 For organizations requiring Daily/Weekly/Monthly Active User (DAU/WAU/MAU) metrics, consider backends that support efficient unique value queries.
 
@@ -351,12 +352,12 @@ For organizations requiring Daily/Weekly/Monthly Active User (DAU/WAU/MAU) metri
 
 All metrics are exported with:
 
-* Service Name: `claude-code`
-* Service Version: Current Claude Code version
-* Meter Name: `com.anthropic.claude_code`
+- Service Name: `claude-code`
+- Service Version: Current Claude Code version
+- Meter Name: `com.anthropic.claude_code`
 
 ## Security/Privacy Considerations
 
-* Telemetry is opt-in and requires explicit configuration
-* Sensitive information like API keys or file contents are never included in metrics or events
-* User prompt content is redacted by default - only prompt length is recorded. To enable user prompt logging, set `OTEL_LOG_USER_PROMPTS=1`
+- Telemetry is opt-in and requires explicit configuration
+- Sensitive information like API keys or file contents are never included in metrics or events
+- User prompt content is redacted by default - only prompt length is recorded. To enable user prompt logging, set `OTEL_LOG_USER_PROMPTS=1`

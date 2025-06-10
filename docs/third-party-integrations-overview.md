@@ -49,6 +49,7 @@ Claude Code can integrate with various third-party services and infrastructure t
       <td>IAM policies, CloudTrail</td>
       <td>IAM roles, Cloud Audit Logs</td>
     </tr>
+
   </tbody>
 </table>
 
@@ -85,8 +86,8 @@ Claude Code supports flexible configuration options that allow you to combine di
 <Note>
   Understand the difference between:
 
-* **Corporate proxy**: An HTTP/HTTPS proxy for routing traffic (set via `HTTPS_PROXY` or `HTTP_PROXY`)
-* **LLM Gateway**: A service that handles authentication and provides provider-compatible endpoints (set via `ANTHROPIC_BASE_URL`, `ANTHROPIC_BEDROCK_BASE_URL`, or `ANTHROPIC_VERTEX_BASE_URL`)
+- **Corporate proxy**: An HTTP/HTTPS proxy for routing traffic (set via `HTTPS_PROXY` or `HTTP_PROXY`)
+- **LLM Gateway**: A service that handles authentication and provides provider-compatible endpoints (set via `ANTHROPIC_BASE_URL`, `ANTHROPIC_BEDROCK_BASE_URL`, or `ANTHROPIC_VERTEX_BASE_URL`)
 
 Both configurations can be used in tandem.
 </Note>
@@ -156,38 +157,38 @@ Consider these factors when selecting your integration approach:
 
 Best for organizations that:
 
-* Want the simplest setup
-* Have existing AWS or GCP infrastructure
-* Need provider-native monitoring and compliance
+- Want the simplest setup
+- Have existing AWS or GCP infrastructure
+- Need provider-native monitoring and compliance
 
 ### Corporate proxy
 
 Best for organizations that:
 
-* Have existing corporate proxy requirements
-* Need traffic monitoring and compliance
-* Must route all traffic through specific network paths
+- Have existing corporate proxy requirements
+- Need traffic monitoring and compliance
+- Must route all traffic through specific network paths
 
 ### LLM Gateway
 
 Best for organizations that:
 
-* Need usage tracking across teams
-* Want to dynamically switch between models
-* Require custom rate limiting or budgets
-* Need centralized authentication management
+- Need usage tracking across teams
+- Want to dynamically switch between models
+- Require custom rate limiting or budgets
+- Need centralized authentication management
 
 ## Debugging
 
 When debugging your third-party integration configuration:
 
-* Use the `claude /status` [slash command](/en/docs/claude-code/cli-usage#slash-command). This command provides observability into any applied authentication, proxy, and URL settings.
-* Set environment variable `export ANTHROPIC_LOG=debug` to log requests.
+- Use the `claude /status` [slash command](/en/docs/claude-code/cli-usage#slash-command). This command provides observability into any applied authentication, proxy, and URL settings.
+- Set environment variable `export ANTHROPIC_LOG=debug` to log requests.
 
 ## Next steps
 
-* [Set up Amazon Bedrock](/en/docs/claude-code/amazon-bedrock) for AWS-native integration
-* [Configure Google Vertex AI](/en/docs/claude-code/google-vertex-ai) for GCP deployment
-* [Implement Corporate Proxy](/en/docs/claude-code/corporate-proxy) for network requirements
-* [Deploy LLM Gateway](/en/docs/claude-code/llm-gateway) for enterprise management
-* [Settings](/en/docs/claude-code/settings) for configuration options and environment variables
+- [Set up Amazon Bedrock](/en/docs/claude-code/amazon-bedrock) for AWS-native integration
+- [Configure Google Vertex AI](/en/docs/claude-code/google-vertex-ai) for GCP deployment
+- [Implement Corporate Proxy](/en/docs/claude-code/corporate-proxy) for network requirements
+- [Deploy LLM Gateway](/en/docs/claude-code/llm-gateway) for enterprise management
+- [Settings](/en/docs/claude-code/settings) for configuration options and environment variables
