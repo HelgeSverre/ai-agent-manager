@@ -1,0 +1,1326 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Agent Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"
+    ></script>
+    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      [x-cloak] {
+        display: none !important;
+      }
+      body {
+        font-family: "JetBrains Mono", monospace;
+      }
+      .terminal-text {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.75rem;
+        line-height: 1.4;
+      }
+      .scrollbar-thin::-webkit-scrollbar {
+        width: 4px;
+        height: 4px;
+      }
+      .scrollbar-thin::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.1);
+      }
+      .scrollbar-thin::-webkit-scrollbar-thumb {
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 2px;
+      }
+      .dark .scrollbar-thin::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.05);
+      }
+      .dark .scrollbar-thin::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.2);
+      }
+      .editor-line {
+        counter-increment: line;
+      }
+      .editor-line::before {
+        content: counter(line);
+        display: inline-block;
+        width: 3em;
+        text-align: right;
+        margin-right: 1em;
+        color: #71717a;
+        user-select: none;
+      }
+      .file-tree-item:hover {
+        background: rgba(255, 255, 255, 0.05);
+      }
+    </style>
+  </head>
+  <body
+    x-data="agentManager"
+    x-init="init()"
+    :class="darkMode ? 'dark' : ''"
+    class="h-screen overflow-hidden"
+  >
+    <div
+      class="h-full bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col"
+    >
+      <!-- Header -->
+      <header
+        class="bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 px-3 py-1.5 flex items-center justify-between"
+      >
+        <div class="flex items-center space-x-3">
+          <h1 class="text-lg font-semibold">AI Agent Manager</h1>
+          <nav class="flex space-x-1">
+            <button
+              @click="currentView = 'sessions'"
+              :class="currentView === 'sessions' ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'"
+              class="px-2 py-0.5 rounded text-xs font-medium transition-colors"
+            >
+              Sessions
+            </button>
+            <button
+              @click="currentView = 'todos'"
+              :class="currentView === 'todos' ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'"
+              class="px-2 py-0.5 rounded text-xs font-medium transition-colors"
+            >
+              All TODOs
+            </button>
+            <button
+              @click="currentView = 'dashboard'"
+              :class="currentView === 'dashboard' ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'"
+              class="px-2 py-0.5 rounded text-xs font-medium transition-colors"
+            >
+              Dashboard
+            </button>
+          </nav>
+        </div>
+        <div class="flex items-center space-x-3">
+          <div class="text-xs text-zinc-600 dark:text-zinc-400">
+            <span class="font-medium">Total Cost:</span> $<span
+              x-text="totalCost.toFixed(2)"
+            ></span>
+          </div>
+          <div
+            x-show="connectionStatus !== 'connected'"
+            class="flex items-center space-x-1"
+          >
+            <div
+              :class="{
+              'bg-yellow-500': connectionStatus === 'connecting',
+              'bg-red-500': connectionStatus === 'disconnected'
+            }"
+              class="w-2 h-2 rounded-full animate-pulse"
+            ></div>
+            <span
+              class="text-xs text-zinc-600 dark:text-zinc-400"
+              x-text="connectionStatus"
+            ></span>
+          </div>
+          <button
+            @click="darkMode = !darkMode"
+            class="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          >
+            <svg
+              x-show="!darkMode"
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
+              ></path>
+            </svg>
+            <svg
+              x-show="darkMode"
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"
+              ></path>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Main Content -->
+      <div class="flex-1 flex overflow-hidden">
+        <!-- Sessions View -->
+        <template x-if="currentView === 'sessions'">
+          <div class="flex flex-1">
+            <!-- Left Sidebar -->
+            <aside
+              class="w-72 bg-zinc-100 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col"
+            >
+              <!-- New Session Input -->
+              <div class="p-3 border-b border-zinc-200 dark:border-zinc-800">
+                <form @submit.prevent="createSession()">
+                  <input
+                    x-model="newSessionName"
+                    @keydown.ctrl.n.prevent="$el.focus()"
+                    type="text"
+                    placeholder="Session name... (Ctrl+N)"
+                    class="w-full px-2 py-1.5 text-xs bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent mb-2"
+                  />
+                  <textarea
+                    x-model="newSessionTask"
+                    placeholder="Task description for Claude..."
+                    class="w-full px-2 py-1.5 text-xs bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent resize-none"
+                    rows="3"
+                  ></textarea>
+                  <button
+                    type="submit"
+                    :disabled="!newSessionName.trim() || !newSessionTask.trim() || creatingSession"
+                    class="w-full mt-2 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span x-show="!creatingSession">Create Session</span>
+                    <span x-show="creatingSession">Creating...</span>
+                  </button>
+                </form>
+              </div>
+
+              <!-- Sessions List -->
+              <div class="flex-1 overflow-y-auto scrollbar-thin">
+                <div
+                  x-show="sessions.length === 0"
+                  class="p-4 text-center text-xs text-zinc-500"
+                >
+                  No sessions yet. Create one to get started!
+                </div>
+                <template x-for="session in sessions" :key="session.id">
+                  <div
+                    @click="selectSession(session.id)"
+                    :class="{
+                      'bg-white dark:bg-zinc-800 shadow-sm': selectedSession?.id === session.id,
+                      'ring-2 ring-orange-500': session.needsIntervention
+                    }"
+                    class="p-3 border-b border-zinc-200 dark:border-zinc-800 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+                  >
+                    <div class="flex items-start justify-between mb-1.5">
+                      <h3
+                        class="font-medium text-xs truncate flex-1"
+                        x-text="session.name"
+                      ></h3>
+                      <div class="flex items-center space-x-1">
+                        <span
+                          :class="{
+                            'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400': session.status === 'active',
+                            'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400': session.status === 'paused',
+                            'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400': session.status === 'completed',
+                            'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400': session.status === 'error'
+                          }"
+                          class="text-xs px-1.5 py-0.5 rounded-full"
+                          x-text="session.status"
+                        ></span>
+                      </div>
+                    </div>
+
+                    <!-- Mini Terminal Preview -->
+                    <div
+                      class="bg-zinc-950 text-emerald-400 p-1.5 rounded text-xs terminal-text h-16 overflow-hidden"
+                    >
+                      <template x-for="line in session.preview" :key="line">
+                        <div x-text="line" class="truncate opacity-80"></div>
+                      </template>
+                    </div>
+
+                    <!-- Progress Bar -->
+                    <div class="mt-1.5">
+                      <div
+                        class="flex justify-between text-xs text-zinc-600 dark:text-zinc-500 mb-0.5"
+                      >
+                        <span>Progress</span>
+                        <span
+                          x-text="`${Math.round(session.progress || 0)}%`"
+                        ></span>
+                      </div>
+                      <div
+                        class="w-full bg-zinc-200 dark:bg-zinc-800 rounded-full h-1"
+                      >
+                        <div
+                          class="bg-blue-600 h-1 rounded-full transition-all duration-300"
+                          :style="`width: ${session.progress || 0}%`"
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </aside>
+
+            <!-- Main Terminal Area -->
+            <main class="flex-1 flex flex-col bg-white dark:bg-zinc-950">
+              <template x-if="selectedSession">
+                <div class="flex-1 flex flex-col">
+                  <!-- Tabs -->
+                  <div
+                    class="flex border-b border-zinc-200 dark:border-zinc-800"
+                  >
+                    <button
+                      @click="activeTab = 'agent'"
+                      :class="activeTab === 'agent' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'"
+                      class="px-3 py-1.5 font-medium text-xs transition-colors"
+                    >
+                      Agent
+                    </button>
+                    <button
+                      @click="activeTab = 'editor'"
+                      :class="activeTab === 'editor' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'"
+                      class="px-3 py-1.5 font-medium text-xs transition-colors"
+                    >
+                      Editor
+                    </button>
+                    <button
+                      @click="activeTab = 'git'"
+                      :class="activeTab === 'git' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'"
+                      class="px-3 py-1.5 font-medium text-xs transition-colors"
+                    >
+                      Git
+                    </button>
+                    <button
+                      @click="activeTab = 'todos'"
+                      :class="activeTab === 'todos' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'"
+                      class="px-3 py-1.5 font-medium text-xs transition-colors relative"
+                    >
+                      TODOs
+                      <span
+                        x-show="selectedSession.todos && selectedSession.todos.filter(t => t.status !== 'done').length > 0"
+                        class="absolute -top-0.5 -right-1.5 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center text-[10px]"
+                      >
+                        <span
+                          x-text="selectedSession.todos.filter(t => t.status !== 'done').length"
+                        ></span>
+                      </span>
+                    </button>
+                  </div>
+
+                  <!-- Tab Content -->
+                  <div class="flex-1 overflow-hidden">
+                    <!-- Agent Tab -->
+                    <div
+                      x-show="activeTab === 'agent'"
+                      class="h-full bg-zinc-950 text-zinc-100 p-3 terminal-text overflow-y-auto scrollbar-thin"
+                    >
+                      <template
+                        x-for="line in selectedSession.terminalOutput"
+                        :key="line.id"
+                      >
+                        <div
+                          :class="{
+                            'text-emerald-400': line.type === 'success',
+                            'text-red-400': line.type === 'error',
+                            'text-amber-400': line.type === 'warning',
+                            'text-zinc-500': line.type === 'info',
+                            'text-blue-400': line.type === 'assistant',
+                            'text-green-400': line.type === 'user'
+                          }"
+                          x-html="line.content"
+                        ></div>
+                      </template>
+                      <div
+                        x-show="selectedSession.status === 'active'"
+                        class="animate-pulse text-zinc-600 mt-2"
+                      >
+                        Claude is thinking...
+                      </div>
+                    </div>
+
+                    <!-- Editor Tab -->
+                    <div x-show="activeTab === 'editor'" class="h-full flex">
+                      <!-- File Browser -->
+                      <div
+                        class="w-56 bg-zinc-100 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 overflow-y-auto scrollbar-thin"
+                      >
+                        <div
+                          class="p-2 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between"
+                        >
+                          <h3
+                            class="text-xs font-semibold text-zinc-600 dark:text-zinc-400"
+                          >
+                            FILES
+                          </h3>
+                          <button
+                            @click="refreshFiles()"
+                            class="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800"
+                          >
+                            <svg
+                              class="w-3 h-3"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                              ></path>
+                            </svg>
+                          </button>
+                        </div>
+                        <div class="p-1">
+                          <div
+                            x-show="!selectedSession.files || selectedSession.files.length === 0"
+                            class="p-2 text-xs text-zinc-500 text-center"
+                          >
+                            No files yet
+                          </div>
+                          <template
+                            x-for="file in selectedSession.files"
+                            :key="file.path"
+                          >
+                            <div x-html="renderFileTree(file)"></div>
+                          </template>
+                        </div>
+                      </div>
+
+                      <!-- Code Editor -->
+                      <div
+                        class="flex-1 flex flex-col bg-zinc-50 dark:bg-zinc-950"
+                      >
+                        <template x-if="selectedFile">
+                          <div class="flex-1 flex flex-col">
+                            <!-- Editor Header -->
+                            <div
+                              class="bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 px-3 py-1 flex items-center justify-between"
+                            >
+                              <div class="flex items-center space-x-2">
+                                <span
+                                  class="text-xs text-zinc-600 dark:text-zinc-400"
+                                  x-text="selectedFile.path"
+                                ></span>
+                                <span
+                                  x-show="selectedFile.modified"
+                                  class="text-xs text-orange-600 dark:text-orange-400"
+                                  >●</span
+                                >
+                              </div>
+                              <div class="flex items-center space-x-2">
+                                <button
+                                  @click="reloadFile()"
+                                  class="text-xs px-2 py-0.5 text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+                                >
+                                  Reload
+                                </button>
+                                <button
+                                  @click="saveFile()"
+                                  :disabled="!selectedFile.modified"
+                                  class="text-xs px-2 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
+                                >
+                                  Save
+                                </button>
+                              </div>
+                            </div>
+                            <!-- Editor Content -->
+                            <div
+                              class="flex-1 p-3 overflow-auto scrollbar-thin"
+                            >
+                              <div
+                                class="bg-zinc-100 dark:bg-zinc-900 rounded p-3"
+                                style="counter-reset: line"
+                              >
+                                <textarea
+                                  x-model="selectedFile.content"
+                                  @input="selectedFile.modified = true"
+                                  class="w-full h-full bg-transparent text-xs terminal-text outline-none resize-none"
+                                  :rows="selectedFile.content ? selectedFile.content.split('\n').length + 5 : 20"
+                                ></textarea>
+                              </div>
+                            </div>
+                          </div>
+                        </template>
+                        <div
+                          x-show="!selectedFile"
+                          class="flex-1 flex items-center justify-center text-zinc-500 text-xs"
+                        >
+                          Select a file to edit
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Git Tab -->
+                    <div
+                      x-show="activeTab === 'git'"
+                      class="h-full p-3 overflow-y-auto scrollbar-thin"
+                    >
+                      <div class="space-y-3">
+                        <div>
+                          <h3 class="font-medium text-xs mb-1.5">
+                            Current Branch
+                          </h3>
+                          <div class="bg-zinc-100 dark:bg-zinc-900 p-2 rounded">
+                            <span
+                              class="text-blue-600 dark:text-blue-400 text-xs"
+                              x-text="selectedSession.branch"
+                            ></span>
+                          </div>
+                        </div>
+                        <div>
+                          <div class="flex items-center justify-between mb-1.5">
+                            <h3 class="font-medium text-xs">Recent Commits</h3>
+                            <button
+                              @click="refreshGitLog()"
+                              class="text-xs text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+                            >
+                              Refresh
+                            </button>
+                          </div>
+                          <div class="space-y-1.5">
+                            <div
+                              x-show="!selectedSession.commits || selectedSession.commits.length === 0"
+                              class="text-xs text-zinc-500"
+                            >
+                              No commits yet
+                            </div>
+                            <template
+                              x-for="commit in selectedSession.commits"
+                              :key="commit.hash"
+                            >
+                              <div
+                                class="bg-zinc-100 dark:bg-zinc-900 p-2 rounded"
+                              >
+                                <div class="flex items-center justify-between">
+                                  <span
+                                    class="font-mono text-xs text-zinc-600 dark:text-zinc-500"
+                                    x-text="commit.hash"
+                                  ></span>
+                                  <span
+                                    class="text-xs text-zinc-500"
+                                    x-text="commit.time"
+                                  ></span>
+                                </div>
+                                <p
+                                  class="mt-0.5 text-xs"
+                                  x-text="commit.message"
+                                ></p>
+                              </div>
+                            </template>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- TODOs Tab -->
+                    <div
+                      x-show="activeTab === 'todos'"
+                      class="h-full p-3 overflow-y-auto scrollbar-thin"
+                    >
+                      <div class="space-y-1.5">
+                        <div
+                          x-show="!selectedSession.todos || selectedSession.todos.length === 0"
+                          class="text-xs text-zinc-500 text-center p-4"
+                        >
+                          No TODOs yet. Claude will create them as it works.
+                        </div>
+                        <template
+                          x-for="todo in selectedSession.todos"
+                          :key="todo.id"
+                        >
+                          <div
+                            class="flex items-center space-x-2 p-2 bg-zinc-50 dark:bg-zinc-900 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                          >
+                            <button
+                              @click="toggleTodo(todo.id)"
+                              :class="{
+                                'bg-green-500 border-green-500': todo.status === 'done',
+                                'bg-yellow-500 border-yellow-500': todo.status === 'in-progress',
+                                'bg-white dark:bg-zinc-950 border-zinc-300 dark:border-zinc-700': todo.status === 'todo'
+                              }"
+                              class="w-4 h-4 rounded border-2 flex items-center justify-center"
+                            >
+                              <svg
+                                x-show="todo.status === 'done'"
+                                class="w-2.5 h-2.5 text-white"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path
+                                  fill-rule="evenodd"
+                                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                  clip-rule="evenodd"
+                                ></path>
+                              </svg>
+                            </button>
+                            <span
+                              class="text-xs"
+                              :class="{'line-through text-zinc-500': todo.status === 'done'}"
+                              x-text="todo.title"
+                            ></span>
+                          </div>
+                        </template>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Action Bar -->
+                  <div
+                    class="border-t border-zinc-200 dark:border-zinc-800 px-3 py-2 flex items-center justify-between"
+                  >
+                    <div class="flex items-center space-x-2">
+                      <button
+                        @click="pauseSession()"
+                        :disabled="selectedSession.status !== 'active'"
+                        class="px-2 py-1 text-xs bg-yellow-500 text-white rounded hover:bg-yellow-600 transition-colors disabled:opacity-50"
+                      >
+                        Pause
+                      </button>
+                      <button
+                        @click="resumeSession()"
+                        :disabled="selectedSession.status !== 'paused'"
+                        class="px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600 transition-colors disabled:opacity-50"
+                      >
+                        Resume
+                      </button>
+                      <button
+                        @click="stopSession()"
+                        :disabled="selectedSession.status === 'completed'"
+                        class="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600 transition-colors disabled:opacity-50"
+                      >
+                        Stop
+                      </button>
+                    </div>
+                    <div class="text-xs text-zinc-600 dark:text-zinc-400">
+                      Tokens:
+                      <span
+                        x-text="(selectedSession.tokensUsed || 0).toLocaleString()"
+                      ></span>
+                      | Cost: $<span
+                        x-text="(selectedSession.cost || 0).toFixed(3)"
+                      ></span>
+                    </div>
+                  </div>
+                </div>
+              </template>
+
+              <div
+                x-show="!selectedSession"
+                class="flex-1 flex items-center justify-center text-zinc-500 text-xs"
+              >
+                Select a session or create a new one
+              </div>
+            </main>
+          </div>
+        </template>
+
+        <!-- All TODOs View -->
+        <template x-if="currentView === 'todos'">
+          <div class="flex-1 p-4 overflow-y-auto scrollbar-thin">
+            <h2 class="text-xl font-bold mb-4">All TODOs</h2>
+            <div class="grid gap-4">
+              <template x-for="session in sessions" :key="session.id">
+                <div
+                  x-show="session.todos && session.todos.length > 0"
+                  class="bg-white dark:bg-zinc-900 rounded-lg shadow p-4"
+                >
+                  <h3
+                    class="font-semibold text-sm mb-3"
+                    x-text="session.name"
+                  ></h3>
+                  <div class="space-y-1.5">
+                    <template x-for="todo in session.todos" :key="todo.id">
+                      <div class="flex items-center space-x-2">
+                        <span
+                          :class="{
+                            'bg-green-500': todo.status === 'done',
+                            'bg-yellow-500': todo.status === 'in-progress',
+                            'bg-zinc-300 dark:bg-zinc-700': todo.status === 'todo'
+                          }"
+                          class="w-2.5 h-2.5 rounded-full"
+                        ></span>
+                        <span
+                          class="text-xs"
+                          :class="{'line-through text-zinc-500': todo.status === 'done'}"
+                          x-text="todo.title"
+                        ></span>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+
+        <!-- Dashboard View -->
+        <template x-if="currentView === 'dashboard'">
+          <div class="flex-1 p-4 overflow-y-auto scrollbar-thin">
+            <h2 class="text-xl font-bold mb-4">Dashboard</h2>
+
+            <!-- Stats Grid -->
+            <div
+              class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6"
+            >
+              <div class="bg-white dark:bg-zinc-900 rounded-lg shadow p-4">
+                <h3
+                  class="text-xs font-medium text-zinc-500 dark:text-zinc-400"
+                >
+                  Active Sessions
+                </h3>
+                <p
+                  class="text-2xl font-bold mt-1"
+                  x-text="sessions.filter(s => s.status === 'active').length"
+                ></p>
+              </div>
+              <div class="bg-white dark:bg-zinc-900 rounded-lg shadow p-4">
+                <h3
+                  class="text-xs font-medium text-zinc-500 dark:text-zinc-400"
+                >
+                  Total Tokens
+                </h3>
+                <p
+                  class="text-2xl font-bold mt-1"
+                  x-text="totalTokens.toLocaleString()"
+                ></p>
+              </div>
+              <div class="bg-white dark:bg-zinc-900 rounded-lg shadow p-4">
+                <h3
+                  class="text-xs font-medium text-zinc-500 dark:text-zinc-400"
+                >
+                  Total Cost
+                </h3>
+                <p class="text-2xl font-bold mt-1">
+                  $<span x-text="totalCost.toFixed(2)"></span>
+                </p>
+              </div>
+              <div class="bg-white dark:bg-zinc-900 rounded-lg shadow p-4">
+                <h3
+                  class="text-xs font-medium text-zinc-500 dark:text-zinc-400"
+                >
+                  Completion Rate
+                </h3>
+                <p
+                  class="text-2xl font-bold mt-1"
+                  x-text="completionRate + '%'"
+                ></p>
+              </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="bg-white dark:bg-zinc-900 rounded-lg shadow p-4">
+              <h3 class="text-sm font-semibold mb-3">Recent Activity</h3>
+              <div class="space-y-2">
+                <template
+                  x-for="activity in recentActivity.slice(0, 10)"
+                  :key="activity.id"
+                >
+                  <div class="flex items-center justify-between text-xs">
+                    <span
+                      class="text-zinc-600 dark:text-zinc-400"
+                      x-text="activity.time"
+                    ></span>
+                    <span x-text="activity.message"></span>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Keyboard Shortcuts Modal -->
+      <div
+        x-show="showShortcuts"
+        x-cloak
+        @keydown.escape="showShortcuts = false"
+        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+      >
+        <div
+          class="bg-white dark:bg-zinc-900 rounded-lg shadow-xl max-w-md w-full p-5"
+        >
+          <h3 class="text-sm font-semibold mb-3">Keyboard Shortcuts</h3>
+          <div class="space-y-1.5 text-xs">
+            <div class="flex justify-between">
+              <span class="text-zinc-600 dark:text-zinc-400">New Session</span>
+              <kbd
+                class="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-xs"
+                >Ctrl + N</kbd
+              >
+            </div>
+            <div class="flex justify-between">
+              <span class="text-zinc-600 dark:text-zinc-400">Switch Tabs</span>
+              <kbd
+                class="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-xs"
+                >Tab</kbd
+              >
+            </div>
+            <div class="flex justify-between">
+              <span class="text-zinc-600 dark:text-zinc-400"
+                >Navigate Sessions</span
+              >
+              <kbd
+                class="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-xs"
+                >↑ ↓</kbd
+              >
+            </div>
+            <div class="flex justify-between">
+              <span class="text-zinc-600 dark:text-zinc-400"
+                >Toggle Dark Mode</span
+              >
+              <kbd
+                class="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-xs"
+                >Ctrl + D</kbd
+              >
+            </div>
+            <div class="flex justify-between">
+              <span class="text-zinc-600 dark:text-zinc-400"
+                >Show Shortcuts</span
+              >
+              <kbd
+                class="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-xs"
+                >?</kbd
+              >
+            </div>
+          </div>
+          <button
+            @click="showShortcuts = false"
+            class="mt-4 w-full px-3 py-1.5 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      document.addEventListener("alpine:init", () => {
+        Alpine.data("agentManager", () => ({
+          // UI State
+          darkMode: true,
+          currentView: "sessions",
+          activeTab: "agent",
+          selectedSession: null,
+          selectedFile: null,
+          newSessionName: "",
+          newSessionTask: "",
+          showShortcuts: false,
+          creatingSession: false,
+          connectionStatus: "disconnected",
+
+          // Data
+          sessions: [],
+          recentActivity: [],
+
+          // Socket
+          socket: null,
+
+          init() {
+            // Set dark mode by default
+            this.darkMode = true;
+
+            // Initialize socket connection
+            this.connectToBackend();
+
+            // Keyboard shortcuts
+            document.addEventListener("keydown", (e) => {
+              if (e.ctrlKey && e.key === "n") {
+                e.preventDefault();
+                document
+                  .querySelector('input[placeholder*="Session name"]')
+                  .focus();
+              }
+              if (e.ctrlKey && e.key === "d") {
+                e.preventDefault();
+                this.darkMode = !this.darkMode;
+              }
+              if (e.key === "?") {
+                this.showShortcuts = true;
+              }
+            });
+          },
+
+          connectToBackend() {
+            this.connectionStatus = "connecting";
+
+            // Connect to backend
+            this.socket = io("http://localhost:3000", {
+              transports: ["websocket", "polling"],
+            });
+
+            this.socket.on("connect", () => {
+              console.log("Connected to backend");
+              this.connectionStatus = "connected";
+              this.addActivity("Connected to backend");
+            });
+
+            this.socket.on("disconnect", () => {
+              console.log("Disconnected from backend");
+              this.connectionStatus = "disconnected";
+              this.addActivity("Disconnected from backend");
+            });
+
+            // Handle sessions list
+            this.socket.on("sessions:list", (sessions) => {
+              console.log("Received sessions:", sessions);
+              this.sessions = sessions.map((s) => ({
+                ...s,
+                preview: s.preview || ["> Waiting for output..."],
+                terminalOutput: s.terminalOutput || [],
+                commits: s.commits || [],
+                todos: s.todos || [],
+                files: s.files || [],
+              }));
+
+              // Select first session if none selected
+              if (this.sessions.length > 0 && !this.selectedSession) {
+                this.selectSession(this.sessions[0].id);
+              }
+            });
+
+            // Handle new session creation
+            this.socket.on("session:created", (session) => {
+              console.log("Session created:", session);
+              const newSession = {
+                ...session,
+                preview: ["> Initializing..."],
+                terminalOutput: [],
+                commits: [],
+                todos: [],
+                files: [],
+              };
+              this.sessions.unshift(newSession);
+              this.selectSession(session.id);
+              this.addActivity(`Created session: ${session.name}`);
+              this.creatingSession = false;
+            });
+
+            // Handle Claude messages
+            this.socket.on("claude:message", (data) => {
+              console.log("Claude message:", data);
+              const session = this.sessions.find(
+                (s) => s.id === data.sessionId,
+              );
+              if (session) {
+                const message = data.message;
+
+                // Update terminal output based on message type
+                if (message.type === "assistant") {
+                  const content = message.message?.content || "";
+                  if (content) {
+                    session.terminalOutput.push({
+                      id: Date.now(),
+                      type: "assistant",
+                      content:
+                        this.escapeHtml(content).substring(0, 500) +
+                        (content.length > 500 ? "..." : ""),
+                    });
+                  }
+                } else if (message.type === "user") {
+                  const content = message.message?.content || "";
+                  if (content) {
+                    session.terminalOutput.push({
+                      id: Date.now(),
+                      type: "user",
+                      content:
+                        "> " + this.escapeHtml(content).substring(0, 200),
+                    });
+                  }
+                }
+
+                // Update preview (last 3 lines)
+                session.preview = session.terminalOutput
+                  .slice(-3)
+                  .map((t) => t.content.substring(0, 50));
+
+                // Update cost and tokens
+                if (message.cost_usd) {
+                  session.cost = (session.cost || 0) + message.cost_usd;
+                  session.tokensUsed = (session.tokensUsed || 0) + 1000; // Estimate
+                }
+              }
+            });
+
+            // Handle session status updates
+            this.socket.on("session:status", (data) => {
+              const session = this.sessions.find(
+                (s) => s.id === data.sessionId,
+              );
+              if (session) {
+                session.status = data.status;
+                this.addActivity(
+                  `Session ${session.name} is now ${data.status}`,
+                );
+              }
+            });
+
+            // Handle session completion
+            this.socket.on("session:complete", (data) => {
+              const session = this.sessions.find(
+                (s) => s.id === data.sessionId,
+              );
+              if (session) {
+                session.progress = 100;
+                session.status = "completed";
+                this.addActivity(`Session ${session.name} completed`);
+              }
+            });
+
+            // Handle intervention needed
+            this.socket.on("session:intervention", (data) => {
+              const session = this.sessions.find(
+                (s) => s.id === data.sessionId,
+              );
+              if (session) {
+                session.needsIntervention = true;
+                this.addActivity(
+                  `Session ${session.name} needs intervention: ${data.reason}`,
+                );
+              }
+            });
+
+            // Handle errors
+            this.socket.on("session:error", (data) => {
+              const session = this.sessions.find(
+                (s) => s.id === data.sessionId,
+              );
+              if (session) {
+                session.terminalOutput.push({
+                  id: Date.now(),
+                  type: "error",
+                  content: `Error: ${data.error}`,
+                });
+              }
+            });
+
+            // Handle file operations
+            this.socket.on("files:list", (data) => {
+              const session = this.sessions.find(
+                (s) => s.id === data.sessionId,
+              );
+              if (session) {
+                session.files = data.files;
+              }
+            });
+
+            this.socket.on("file:content", (data) => {
+              if (this.selectedFile && this.selectedFile.path === data.path) {
+                this.selectedFile.content = data.content;
+                this.selectedFile.modified = false;
+              }
+            });
+
+            this.socket.on("file:saved", (data) => {
+              if (this.selectedFile && this.selectedFile.path === data.path) {
+                this.selectedFile.modified = false;
+                this.addActivity(`Saved ${data.path}`);
+              }
+            });
+
+            // Handle git operations
+            this.socket.on("git:log", (data) => {
+              const session = this.sessions.find(
+                (s) => s.id === data.sessionId,
+              );
+              if (session) {
+                session.commits = data.commits;
+              }
+            });
+
+            // Handle general errors
+            this.socket.on("error", (error) => {
+              console.error("Socket error:", error);
+              alert(error.message || "An error occurred");
+              if (error.message?.includes("Failed to create session")) {
+                this.creatingSession = false;
+              }
+            });
+          },
+
+          // Helper Methods
+          escapeHtml(text) {
+            const div = document.createElement("div");
+            div.textContent = text;
+            return div.innerHTML;
+          },
+
+          addActivity(message) {
+            this.recentActivity.unshift({
+              id: Date.now(),
+              time: new Date().toLocaleTimeString(),
+              message,
+            });
+            if (this.recentActivity.length > 50) {
+              this.recentActivity = this.recentActivity.slice(0, 50);
+            }
+          },
+
+          // Session Management
+          createSession() {
+            if (!this.newSessionName.trim() || !this.newSessionTask.trim())
+              return;
+
+            this.creatingSession = true;
+            this.socket.emit("session:create", {
+              name: this.newSessionName,
+              task: this.newSessionTask,
+            });
+
+            this.newSessionName = "";
+            this.newSessionTask = "";
+          },
+
+          selectSession(id) {
+            this.selectedSession = this.sessions.find((s) => s.id === id);
+            this.selectedFile = null;
+
+            if (this.selectedSession) {
+              // Request files for this session
+              this.socket.emit("files:list", id);
+              // Request git log
+              this.socket.emit("git:log", id);
+            }
+          },
+
+          pauseSession() {
+            if (
+              this.selectedSession &&
+              this.selectedSession.status === "active"
+            ) {
+              this.socket.emit("session:pause", this.selectedSession.id);
+            }
+          },
+
+          resumeSession() {
+            if (
+              this.selectedSession &&
+              this.selectedSession.status === "paused"
+            ) {
+              this.socket.emit("session:resume", {
+                sessionId: this.selectedSession.id,
+              });
+            }
+          },
+
+          stopSession() {
+            if (
+              this.selectedSession &&
+              this.selectedSession.status !== "completed"
+            ) {
+              if (confirm("Are you sure you want to stop this session?")) {
+                this.socket.emit("session:stop", this.selectedSession.id);
+              }
+            }
+          },
+
+          // File Operations
+          renderFileTree(file) {
+            if (file.type === "folder") {
+              return `
+                <div>
+                  <div
+                    @click="toggleFolder('${file.path}')"
+                    class="flex items-center space-x-1 px-2 py-0.5 rounded cursor-pointer hover:bg-zinc-200 dark:hover:bg-zinc-800 file-tree-item"
+                  >
+                    <svg
+                      :class="{'rotate-90': isFolderExpanded('${file.path}')}"
+                      class="w-3 h-3 transition-transform"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fill-rule="evenodd"
+                        d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+                        clip-rule="evenodd"
+                      ></path>
+                    </svg>
+                    <svg
+                      class="w-3 h-3 text-blue-600 dark:text-blue-400"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"
+                      ></path>
+                    </svg>
+                    <span class="text-xs">${file.name}</span>
+                  </div>
+                  <div x-show="isFolderExpanded('${file.path}')" class="ml-3">
+                    ${file.children ? file.children.map((child) => this.renderFileTree(child)).join("") : ""}
+                  </div>
+                </div>
+              `;
+            } else {
+              return `
+                <div
+                  @click="openFile('${file.path}')"
+                  :class="{'bg-zinc-200 dark:bg-zinc-800': selectedFile?.path === '${file.path}'}"
+                  class="flex items-center space-x-1 px-2 py-0.5 rounded cursor-pointer hover:bg-zinc-200 dark:hover:bg-zinc-800 file-tree-item"
+                >
+                  <svg
+                    class="w-3 h-3 text-zinc-500"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fill-rule="evenodd"
+                      d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm2 4a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z"
+                      clip-rule="evenodd"
+                    ></path>
+                  </svg>
+                  <span class="text-xs">${file.name}</span>
+                </div>
+              `;
+            }
+          },
+
+          expandedFolders: new Set(),
+
+          toggleFolder(path) {
+            if (this.expandedFolders.has(path)) {
+              this.expandedFolders.delete(path);
+            } else {
+              this.expandedFolders.add(path);
+            }
+          },
+
+          isFolderExpanded(path) {
+            return this.expandedFolders.has(path);
+          },
+
+          openFile(path) {
+            const findFile = (files, targetPath) => {
+              for (const file of files) {
+                if (file.path === targetPath) return file;
+                if (file.children) {
+                  const found = findFile(file.children, targetPath);
+                  if (found) return found;
+                }
+              }
+              return null;
+            };
+
+            const file = findFile(this.selectedSession.files, path);
+            if (file && file.type === "file") {
+              this.selectedFile = { ...file, modified: false };
+
+              // Request file content if not already loaded
+              if (!this.selectedFile.content) {
+                this.socket.emit("file:read", {
+                  sessionId: this.selectedSession.id,
+                  path: path,
+                });
+              }
+            }
+          },
+
+          refreshFiles() {
+            if (this.selectedSession) {
+              this.socket.emit("files:list", this.selectedSession.id);
+            }
+          },
+
+          reloadFile() {
+            if (this.selectedFile && this.selectedSession) {
+              this.socket.emit("file:read", {
+                sessionId: this.selectedSession.id,
+                path: this.selectedFile.path,
+              });
+            }
+          },
+
+          saveFile() {
+            if (
+              this.selectedFile &&
+              this.selectedSession &&
+              this.selectedFile.modified
+            ) {
+              this.socket.emit("file:save", {
+                sessionId: this.selectedSession.id,
+                path: this.selectedFile.path,
+                content: this.selectedFile.content,
+              });
+            }
+          },
+
+          refreshGitLog() {
+            if (this.selectedSession) {
+              this.socket.emit("git:log", this.selectedSession.id);
+            }
+          },
+
+          // Computed Properties
+          get totalTokens() {
+            return this.sessions.reduce(
+              (sum, session) => sum + (session.tokensUsed || 0),
+              0,
+            );
+          },
+
+          get totalCost() {
+            return this.sessions.reduce(
+              (sum, session) => sum + (session.cost || 0),
+              0,
+            );
+          },
+
+          get totalTasks() {
+            return this.sessions.reduce(
+              (sum, session) => sum + (session.todos?.length || 0),
+              0,
+            );
+          },
+
+          get tasksCompleted() {
+            return this.sessions.reduce(
+              (sum, session) =>
+                sum +
+                (session.todos?.filter((t) => t.status === "done").length || 0),
+              0,
+            );
+          },
+
+          get tasksInProgress() {
+            return this.sessions.reduce(
+              (sum, session) =>
+                sum +
+                (session.todos?.filter((t) => t.status === "in-progress")
+                  .length || 0),
+              0,
+            );
+          },
+
+          get tasksTodo() {
+            return this.sessions.reduce(
+              (sum, session) =>
+                sum +
+                (session.todos?.filter((t) => t.status === "todo").length || 0),
+              0,
+            );
+          },
+
+          get completionRate() {
+            return this.totalTasks > 0
+              ? Math.round((this.tasksCompleted / this.totalTasks) * 100)
+              : 0;
+          },
+
+          toggleTodo(todoId) {
+            const todo = this.selectedSession.todos.find(
+              (t) => t.id === todoId,
+            );
+            if (todo) {
+              const states = ["todo", "in-progress", "done"];
+              const currentIndex = states.indexOf(todo.status);
+              todo.status = states[(currentIndex + 1) % states.length];
+            }
+          },
+        }));
+      });
+    </script>
+  </body>
+</html>
