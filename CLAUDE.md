@@ -1,72 +1,156 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working with this AI Agent Manager project.
 
-## Project Overview
+## Architecture Overview
 
-AI Agent Manager - A backend service for managing Claude AI agent sessions with a web-based frontend interface. Built with TypeScript and Bun runtime.
-
-## Commands
-
-```bash
-# Install dependencies
-bun install
-
-# Start the development server
-bun run start
-
-# Format code
-bun run format
-```
-
-## Architecture
+The AI Agent Manager is a WebSocket-based application that manages multiple Claude AI sessions in parallel. The system creates isolated git worktrees for each session and provides a web interface to monitor and control the agents.
 
 ### Core Components
 
-1. **Agent Management** (`src/lib/agent-manager.ts`):
-   - Manages Claude CLI processes in isolated git worktrees
-   - Each session runs in its own branch with a unique worktree directory
-   - Extends EventEmitter for internal event handling
+1. **AgentManager** (`src/lib/agent-manager.ts`): Core session management
 
-2. **WebSocket Server** (`src/lib/websocket-server.ts`):
-   - Handles real-time communication between frontend and backend
-   - Key events: createSession, pauseSession, resumeSession, stopSession, editFile, commitFiles
+   - Creates and manages Claude CLI processes
+   - Handles git worktree creation for session isolation
+   - Tracks session state and persistence
+   - Uses `execa` for robust process execution with JSON output format
 
-3. **Server** (`src/server.ts`):
-   - Express server with Socket.IO integration
-   - Serves static frontend from /public
-   - CORS enabled for frontend communication
+2. **WebSocketServer** (`src/lib/websocket-server.ts`): Real-time communication
 
-### Key Patterns
+   - Handles WebSocket connections from frontend
+   - Forwards events between frontend and AgentManager
+   - Manages file watchers for real-time file changes
 
-- **Event-Driven Architecture**: AgentManager emits events for session updates, output, file changes
-- **Process Management**: Spawns and manages Claude CLI processes with proper cleanup
-- **File System Integration**: Uses chokidar for file watching and simple-git for version control
-- **Real-time Updates**: All agent output and file changes streamed to frontend via WebSocket
+3. **Frontend** (`public/index.html`): Single-page Alpine.js application
+   - Session management interface
+   - Real-time terminal output display
+   - File browser and editor
+   - Git log viewer
+   - TODO task management
 
-### Persistence & Logging
+### Key Features
 
-- **State Persistence**: Sessions automatically saved to `{BASE_REPO_PATH}/agent-state.json`
-- **Auto-restore**: Sessions restored on startup with previous state
-- **Structured Logging**: Separate log files in `logs/` directory:
-  - `logs/combined.log` - All application logs
-  - `logs/error.log` - Error-level logs only
-  - `logs/sessions.log` - Session-specific events
-- **Log Rotation**: Automatic rotation with 5MB file size limit
+- **Session Isolation**: Each Claude session runs in its own git worktree
+- **Real-time Updates**: WebSocket communication for live session monitoring
+- **File Management**: Browse, edit, and save files in session workspaces
+- **Git Integration**: Automatic branch creation and commit tracking
+- **TODO Management**: Track and manage tasks per session
 
-### Debug Mode
+## Common Development Commands
 
-- **Environment Variable**: Set `CLAUDE_DEBUG_MODE=true` or `ANTHROPIC_LOG=debug`
-- **Runtime Control**: Toggle via WebSocket events (`debug:toggle`, `debug:status`)
-- **Effect**: Injects `ANTHROPIC_LOG=debug` into Claude CLI processes for detailed API logging
-- **Useful For**: Debugging Claude API requests, response times, and rate limiting issues
+### Development
 
-### Environment Variables
+- `bun start` - Start the development server
+- `bun run format` - Format code with Prettier
 
-Required in `.env`:
-- `ANTHROPIC_API_KEY` - Claude API key
-- `BASE_REPO_PATH` - Directory for git worktrees (default: ./repo)
-- `FRONTEND_URL` - Frontend URL for CORS (default: http://localhost:3001)
-- `PORT` - Server port (default: 3000)
-- `LOG_LEVEL` - Logging level (default: info)
-- `CLAUDE_DEBUG_MODE` - Enable debug mode for Claude CLI processes (default: false)
+### Testing
+
+- `bun test` - Run all tests with Vitest
+- `bun run test:ui` - Run tests with interactive UI
+- `bun run test:coverage` - Run tests with coverage report
+- `bun run test:run` - Run tests once (non-watch mode)
+
+### Maintenance
+
+- `bun run clean` - Clean log files
+- `bun run nuke` - Remove all dependencies and lock files
+
+## TODO / Roadmap
+
+### Phase 1: Core Fixes ✅
+
+- [x] Fix Claude CLI integration using proper JSON format with execa
+- [x] Switch from Playwright to Vitest for testing
+- [x] Remove broken telemetry system
+- [x] Clean up project structure
+
+### Phase 2: UI Improvements ✅
+
+- [x] Make session name optional (generate default name if not provided)
+- [x] Display session ID in the agent session card in frontend
+- [x] Fix dark mode toggle - light mode currently broken
+- [x] Show error status properly in session cards
+
+### Phase 3: Terminal Integration
+
+- [ ] Add xterm.js for running commands alongside Claude sessions
+  - Interactive terminal in each session
+  - Run scripts and tasks without going through Claude
+  - Maintain terminal history per session
+  - Allow direct command execution in session workspace
+
+### Phase 4: TODO Management
+
+- [ ] Sync TODO tab items to TODO.md file in project directory
+  - One TODO.md per session in the session's worktree
+  - Auto-sync when TODOs are updated in the UI
+  - Markdown format for easy reading outside the app
+  - Load existing TODO.md files when session is restored
+
+### Phase 5: Workspace & Project Management
+
+- [ ] Implement "Workspace" concept
+
+  - Collection of projects with shared configuration
+  - Persist in `~/.ai-agent-manager/workspace.json`
+  - Or use `./.ai-agent-manager/` if exists in current directory
+  - In dev mode, use current project folder as workspace
+
+- [ ] Implement "Project" concept
+
+  - A directory where Claude runs with related session information
+  - Allow multiple agents per project simultaneously
+  - Project-level settings and templates
+
+- [ ] Add project switching in frontend
+  - UI to switch between different projects/repositories
+  - Show which agents are working on which project
+  - Support scenarios like: 3 agents on project A, 2 on project B
+
+### Phase 6: Session Management
+
+- [ ] Session templates for common tasks
+- [ ] Session resumption across server restarts
+- [ ] Export/import session configurations
+- [ ] Session collaboration features
+
+### Phase 7: Advanced Features
+
+- [ ] Authentication and multi-user support
+- [ ] Cost tracking and limits per project/user
+- [ ] Claude tool use integration (Bash, FileEditor, etc.)
+- [ ] Docker deployment option
+- [ ] CLI client for the agent manager
+- [ ] Custom system prompts per session type
+- [ ] Session analytics and reporting
+
+## Development Notes
+
+### Claude CLI Integration
+
+- Uses `execa` instead of Node's `spawn` for better process management
+- Claude CLI is invoked with `claude -p "task" --output-format json`
+- Responses are parsed as complete JSON objects (not streaming)
+- Session resumption uses `claude --resume <session-id> --output-format json`
+
+### Session Management
+
+- Each session gets its own git worktree for isolation
+- Session state is persisted to `agent-state.json`
+- Sessions are automatically marked as completed when server restarts
+
+### WebSocket Events
+
+- `session:create` - Create new session
+- `claude:message` - Claude response received
+- `session:status` - Session status changed
+- `session:error` - Error in session
+- `files:list` - Request file listing
+- `file:read/save` - File operations
+
+### Testing Strategy
+
+- Unit tests for individual components using Vitest
+- Integration tests for full workflow scenarios
+- Mock Claude CLI for predictable testing
+- Coverage reports for code quality assurance
