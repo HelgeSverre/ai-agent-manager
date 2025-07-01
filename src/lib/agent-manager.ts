@@ -4,74 +4,37 @@ import simpleGit, { SimpleGit } from "simple-git";
 import * as fs from "fs/promises";
 import * as path from "path";
 import winston from "winston";
-import { execa } from "execa";
+import {
+  query,
+  type SDKMessage,
+  type Options,
+} from "@anthropic-ai/claude-code";
 import {
   AgentSession,
   ClaudeMessage,
   FileNode,
   GitCommit,
+  TerminalMessage,
 } from "../types/agent";
+import { WorkspaceManager } from "./workspace-manager";
+import { createLogger } from "./logger";
 
-const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || "info",
-  format: winston.format.combine(
-    winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
-    winston.format.errors({ stack: true }),
-    winston.format.json(),
-  ),
-  defaultMeta: { service: "agent-manager" },
-  transports: [
-    new winston.transports.File({
-      filename: "logs/error.log",
-      level: "error",
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
-    }),
-    new winston.transports.File({
-      filename: "logs/combined.log",
-      maxsize: 5242880, // 5MB
-      maxFiles: 10,
-    }),
-    new winston.transports.File({
-      filename: "logs/sessions.log",
-      level: "info",
-      format: winston.format.combine(
-        winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
-        winston.format.label({ label: "SESSION" }),
-        winston.format.json(),
-      ),
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
-    }),
-    new winston.transports.Console({
-      level: process.env.NODE_ENV === "production" ? "warn" : "info",
-      format: winston.format.combine(
-        winston.format.timestamp({ format: "HH:mm:ss" }),
-        winston.format.colorize({ all: true }),
-        winston.format.printf(
-          ({ timestamp, level, message, service, ...meta }) => {
-            let output = `${timestamp} [${service || "app"}] ${level}: ${message}`;
+const logger = createLogger("agent-manager");
 
-            // Format additional metadata
-            const metaKeys = Object.keys(meta);
-            if (metaKeys.length > 0) {
-              const cleanMeta = { ...meta };
-              delete cleanMeta.timestamp;
-              delete cleanMeta.service;
-
-              if (Object.keys(cleanMeta).length > 0) {
-                // Pretty print JSON metadata
-                output += "\n" + JSON.stringify(cleanMeta, null, 2);
-              }
-            }
-
-            return output;
-          },
-        ),
-      ),
-    }),
-  ],
-});
+// Add custom session log transport
+logger.add(
+  new winston.transports.File({
+    filename: "logs/sessions.log",
+    level: "info",
+    format: winston.format.combine(
+      winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
+      winston.format.label({ label: "SESSION" }),
+      winston.format.json(),
+    ),
+    maxsize: 5242880, // 5MB
+    maxFiles: 5,
+  }),
+);
 
 export class AgentManager extends EventEmitter {
   private sessions: Map<string, AgentSession> = new Map();
@@ -82,6 +45,7 @@ export class AgentManager extends EventEmitter {
   private stateFilePath: string;
   private autoSaveInterval: NodeJS.Timeout | null = null;
   private debugMode: boolean = false;
+  private workspaceManager: WorkspaceManager;
 
   constructor(baseRepoPath: string = process.env.BASE_REPO_PATH || "./repo") {
     super();
@@ -92,9 +56,13 @@ export class AgentManager extends EventEmitter {
       process.env.CLAUDE_DEBUG_MODE === "true" ||
       process.env.ANTHROPIC_LOG === "debug";
     this.git = simpleGit(this.baseRepoPath);
+    this.workspaceManager = new WorkspaceManager();
   }
 
   async initialize() {
+    // Initialize workspace manager first
+    await this.workspaceManager.initialize();
+
     // Ensure base repo exists
     try {
       await fs.access(this.baseRepoPath);
@@ -129,6 +97,7 @@ export class AgentManager extends EventEmitter {
       baseRepoPath: this.baseRepoPath,
       existingSessions: this.sessions.size,
       debugMode: this.debugMode,
+      currentWorkspace: this.workspaceManager.getCurrentWorkspace()?.name,
     });
   }
 
@@ -152,6 +121,10 @@ export class AgentManager extends EventEmitter {
       throw new Error("Failed to create worktree");
     }
 
+    // Get current workspace and project
+    const currentWorkspace = this.workspaceManager.getCurrentWorkspace();
+    const currentProject = this.workspaceManager.getCurrentProject();
+
     const session: AgentSession = {
       id: sessionId,
       name: sessionName,
@@ -162,11 +135,24 @@ export class AgentManager extends EventEmitter {
       needsIntervention: false,
       tokensUsed: 0,
       cost: 0,
+      messages: [],
       createdAt: new Date(),
       updatedAt: new Date(),
+      workspaceId: currentWorkspace?.id,
+      projectId: currentProject?.id,
+      task,
     };
 
     this.sessions.set(sessionId, session);
+
+    // Add session to current project if exists
+    if (currentWorkspace?.id && currentProject?.id) {
+      await this.workspaceManager.addSessionToProject(
+        currentWorkspace.id,
+        currentProject.id,
+        sessionId,
+      );
+    }
 
     // Log session creation
     logger.info("Session created", {
@@ -174,6 +160,8 @@ export class AgentManager extends EventEmitter {
       name,
       branch: branchName,
       taskPreview: task.substring(0, 80) + (task.length > 80 ? "..." : ""),
+      workspace: currentWorkspace?.name,
+      project: currentProject?.name,
     });
 
     // Save state after session creation
@@ -190,84 +178,45 @@ export class AgentManager extends EventEmitter {
     if (!session) throw new Error("Session not found");
 
     try {
-      logger.info("Starting Claude process", {
+      logger.info("Starting Claude process with SDK", {
         sessionId: sessionId.substring(0, 8),
         task: task.substring(0, 50),
       });
 
-      // Match claude-code-js implementation
-      const args = ["--output-format", "json", "-p", task];
+      // Use SDK instead of CLI
+      const abortController = new AbortController();
+      this.processes.set(sessionId, abortController);
 
-      logger.debug("Executing Claude command", {
+      const options: Options = {
+        cwd: session.worktreePath,
+        abortController,
+        maxTurns: 10,
+        model: process.env.ANTHROPIC_MODEL || undefined,
+      };
+
+      logger.debug("Starting Claude SDK query", {
         sessionId: sessionId.substring(0, 8),
         cwd: session.worktreePath,
-        command: "claude",
-        args: args,
+        options: { ...options, abortController: undefined },
       });
 
-      const result = await execa("claude", args, {
-        cwd: session.worktreePath,
-        env: {
-          ...process.env,
-          ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
-        },
-        stdin: "ignore",
-        stdout: "pipe",
-        stderr: "pipe",
-        reject: false,
-        timeout: 60000,
-        shell: false,
-      });
+      // Process messages as they come in
+      for await (const message of query({ prompt: task, options })) {
+        // Convert SDK message to our ClaudeMessage format
+        const claudeMessage = this.convertSDKMessage(message);
 
-      logger.debug("Claude process result", {
-        sessionId: sessionId.substring(0, 8),
-        exitCode: result.exitCode,
-        stdout: result.stdout?.substring(0, 200),
-        stderr: result.stderr,
-        failed: result.failed,
-        timedOut: result.timedOut,
-      });
-
-      if (result.exitCode === 0 && result.stdout) {
-        try {
-          // Parse JSON response like claude-code-js does
-          let message: ClaudeMessage;
-          const stdoutJson = JSON.parse(result.stdout);
-
-          if (Array.isArray(stdoutJson)) {
-            message = stdoutJson[stdoutJson.length - 1] as ClaudeMessage;
-          } else {
-            message = stdoutJson as ClaudeMessage;
-          }
-
-          this.handleClaudeMessage(sessionId, message);
-
-          // Update session status based on message type
-          if (message.type === "result") {
-            this.updateSessionStatus(sessionId, "completed");
-          }
-        } catch (parseError) {
-          logger.error("Failed to parse Claude response", {
-            sessionId: sessionId.substring(0, 8),
-            error: (parseError as Error).message,
-            stdout: result.stdout,
-          });
-          this.emit("session:error", {
-            sessionId,
-            error: "Failed to parse Claude response",
-          });
-          this.updateSessionStatus(sessionId, "error");
+        // Store session ID if available
+        if (message.session_id && !session.claudeSessionId) {
+          session.claudeSessionId = message.session_id;
         }
-      } else {
-        // Handle error
-        const errorMessage = result.stderr || result.stdout || "Unknown error";
-        logger.error("Claude process failed", {
-          sessionId: sessionId.substring(0, 8),
-          exitCode: result.exitCode,
-          error: errorMessage,
-        });
-        this.emit("session:error", { sessionId, error: errorMessage });
-        this.updateSessionStatus(sessionId, "error");
+
+        this.handleClaudeMessage(sessionId, claudeMessage);
+
+        // Update session status based on message type
+        if (message.type === "result") {
+          this.updateSessionStatus(sessionId, "completed");
+          break;
+        }
       }
     } catch (error) {
       logger.error("Failed to start Claude process", {
@@ -279,6 +228,52 @@ export class AgentManager extends EventEmitter {
         error: `Failed to start Claude: ${(error as Error).message}`,
       });
       this.updateSessionStatus(sessionId, "error");
+    } finally {
+      // Clean up abort controller
+      this.processes.delete(sessionId);
+    }
+  }
+
+  private convertSDKMessage(sdkMessage: SDKMessage): ClaudeMessage {
+    switch (sdkMessage.type) {
+      case "system":
+        return {
+          type: "system",
+          subtype: sdkMessage.subtype,
+          tools: sdkMessage.tools,
+          mcp_servers: sdkMessage.mcp_servers,
+          session_id: sdkMessage.session_id,
+        };
+
+      case "assistant":
+        return {
+          type: "assistant",
+          message: sdkMessage.message,
+          session_id: sdkMessage.session_id,
+        };
+
+      case "user":
+        return {
+          type: "user",
+          message: sdkMessage.message,
+          session_id: sdkMessage.session_id,
+        };
+
+      case "result":
+        return {
+          type: "result",
+          subtype: sdkMessage.subtype,
+          result: "result" in sdkMessage ? sdkMessage.result : undefined,
+          cost_usd: sdkMessage.total_cost_usd,
+          duration_ms: sdkMessage.duration_ms,
+          duration_api_ms: sdkMessage.duration_api_ms,
+          is_error: sdkMessage.is_error,
+          num_turns: sdkMessage.num_turns,
+          session_id: sdkMessage.session_id,
+        };
+
+      default:
+        return sdkMessage as any;
     }
   }
 
@@ -302,6 +297,70 @@ export class AgentManager extends EventEmitter {
         sessionId,
         claudeSessionId: message.session_id,
       });
+    }
+
+    // Create a unique message ID
+    const messageId = Date.now() + Math.floor(Math.random() * 1000);
+
+    // Store messages in session for persistence
+    if (message.type === "assistant") {
+      // Handle content that might be an array or object from SDK
+      let contentStr = "";
+      if (message.message?.content) {
+        if (typeof message.message.content === "string") {
+          contentStr = message.message.content;
+        } else if (Array.isArray(message.message.content)) {
+          // Extract text from content blocks
+          contentStr = message.message.content
+            .filter((block: any) => block.type === "text")
+            .map((block: any) => block.text)
+            .join("\n");
+        }
+      }
+
+      if (contentStr) {
+        const terminalMessage: TerminalMessage = {
+          id: messageId,
+          type: "assistant",
+          content:
+            contentStr.substring(0, 500) +
+            (contentStr.length > 500 ? "..." : ""),
+          timestamp: new Date(),
+        };
+        session.messages.push(terminalMessage);
+      }
+    } else if (message.type === "user") {
+      // Handle user content similarly
+      let contentStr = "";
+      if (message.message?.content) {
+        if (typeof message.message.content === "string") {
+          contentStr = message.message.content;
+        } else if (Array.isArray(message.message.content)) {
+          contentStr = message.message.content
+            .filter((block: any) => block.type === "text")
+            .map((block: any) => block.text)
+            .join("\n");
+        }
+      }
+
+      if (contentStr) {
+        const terminalMessage: TerminalMessage = {
+          id: messageId,
+          type: "user",
+          content: contentStr,
+          timestamp: new Date(),
+        };
+        session.messages.push(terminalMessage);
+      }
+    } else if (message.type === "result") {
+      const content = message.result || "Task completed";
+      const terminalMessage: TerminalMessage = {
+        id: messageId,
+        type: "assistant",
+        content: content,
+        timestamp: new Date(),
+      };
+      session.messages.push(terminalMessage);
     }
 
     // Handle different message types
@@ -357,9 +416,10 @@ export class AgentManager extends EventEmitter {
   }
 
   async pauseSession(sessionId: string) {
-    const process = this.processes.get(sessionId);
-    if (process) {
-      process.kill("SIGSTOP");
+    // With SDK, we can't pause - we need to stop and later resume
+    const abortController = this.processes.get(sessionId);
+    if (abortController && abortController instanceof AbortController) {
+      abortController.abort();
       this.updateSessionStatus(sessionId, "paused");
     }
   }
@@ -372,72 +432,54 @@ export class AgentManager extends EventEmitter {
       throw new Error("No Claude session ID to resume");
     }
 
+    // Check if worktree still exists
     try {
-      logger.info("Resuming Claude session", {
+      await fs.access(session.worktreePath);
+    } catch (error) {
+      logger.error("Worktree path does not exist", {
+        sessionId: sessionId.substring(0, 8),
+        worktreePath: session.worktreePath,
+      });
+      throw new Error("Session worktree no longer exists. Cannot resume.");
+    }
+
+    try {
+      logger.info("Resuming Claude session with SDK", {
         sessionId: sessionId.substring(0, 8),
         claudeSessionId: session.claudeSessionId,
       });
 
-      // Build args for resume matching claude-code-js pattern
-      const args = ["--output-format", "json"];
+      // Use SDK with resume option
+      const abortController = new AbortController();
+      this.processes.set(sessionId, abortController);
 
-      if (prompt) {
-        args.push("-p", prompt);
-      }
-
-      args.push("--resume", session.claudeSessionId);
-
-      // Run Claude with resume
-      const result = await execa("claude", args, {
+      const options: Options = {
         cwd: session.worktreePath,
-        env: {
-          ...process.env,
-          ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
-        },
-        stdin: "ignore",
-        stdout: "pipe",
-        stderr: "pipe",
-        reject: false,
-        timeout: 60000,
-      });
+        abortController,
+        maxTurns: 10,
+        model: process.env.ANTHROPIC_MODEL || undefined,
+        resume: session.claudeSessionId,
+      };
 
-      if (result.exitCode === 0 && result.stdout) {
-        try {
-          // Parse the JSON response
-          let message: ClaudeMessage;
-          const parsed = JSON.parse(result.stdout);
+      // Update session status to active
+      this.updateSessionStatus(sessionId, "active");
 
-          // Handle array or single object response
-          if (Array.isArray(parsed)) {
-            message = parsed[parsed.length - 1];
-          } else {
-            message = parsed;
-          }
+      // Process messages as they come in
+      // SDK requires a non-empty prompt, so use a continuation prompt if none provided
+      for await (const message of query({
+        prompt: prompt || "Please continue with the task.",
+        options,
+      })) {
+        // Convert SDK message to our ClaudeMessage format
+        const claudeMessage = this.convertSDKMessage(message);
 
-          this.handleClaudeMessage(sessionId, message);
+        this.handleClaudeMessage(sessionId, claudeMessage);
 
-          // Update session status
-          if (message.type === "result") {
-            this.updateSessionStatus(sessionId, "completed");
-          }
-        } catch (parseError) {
-          logger.error("Failed to parse Claude resume response", {
-            sessionId: sessionId.substring(0, 8),
-            error: (parseError as Error).message,
-          });
-          this.emit("session:error", {
-            sessionId,
-            error: "Failed to parse Claude response",
-          });
+        // Update session status based on message type
+        if (message.type === "result") {
+          this.updateSessionStatus(sessionId, "completed");
+          break;
         }
-      } else {
-        // Handle error
-        const errorMessage = result.stderr || result.stdout || "Unknown error";
-        logger.error("Claude resume failed", {
-          sessionId: sessionId.substring(0, 8),
-          error: errorMessage,
-        });
-        this.emit("session:error", { sessionId, error: errorMessage });
       }
     } catch (error) {
       logger.error("Failed to resume Claude session", {
@@ -448,13 +490,17 @@ export class AgentManager extends EventEmitter {
         sessionId,
         error: `Failed to resume: ${(error as Error).message}`,
       });
+      this.updateSessionStatus(sessionId, "error");
+    } finally {
+      // Clean up abort controller
+      this.processes.delete(sessionId);
     }
   }
 
   async stopSession(sessionId: string) {
-    const process = this.processes.get(sessionId);
-    if (process) {
-      process.kill("SIGTERM");
+    const abortController = this.processes.get(sessionId);
+    if (abortController && abortController instanceof AbortController) {
+      abortController.abort();
     }
     this.updateSessionStatus(sessionId, "completed");
   }
@@ -523,15 +569,29 @@ export class AgentManager extends EventEmitter {
     const session = this.sessions.get(sessionId);
     if (!session) throw new Error("Session not found");
 
-    const git = simpleGit(session.worktreePath);
-    const log = await git.log(["--oneline", "-n", "20"]);
+    try {
+      // Check if worktree path exists
+      await fs.access(session.worktreePath);
 
-    return log.all.map((commit) => ({
-      hash: commit.hash.substring(0, 7),
-      message: commit.message,
-      time: new Date(commit.date).toLocaleString(),
-      author: commit.author_name,
-    }));
+      const git = simpleGit(session.worktreePath);
+      const log = await git.log(["--oneline", "-n", "20"]);
+
+      return log.all.map((commit) => ({
+        hash: commit.hash.substring(0, 7),
+        message: commit.message,
+        time: new Date(commit.date).toLocaleString(),
+        author: commit.author_name,
+      }));
+    } catch (error) {
+      logger.warn("Failed to get git log", {
+        sessionId,
+        worktreePath: session.worktreePath,
+        error: (error as Error).message,
+      });
+
+      // Return empty array if git log fails (e.g., no commits yet or path doesn't exist)
+      return [];
+    }
   }
 
   private updateSessionStatus(
@@ -586,6 +646,33 @@ export class AgentManager extends EventEmitter {
     return this.debugMode;
   }
 
+  // Workspace methods
+  getWorkspaceManager(): WorkspaceManager {
+    return this.workspaceManager;
+  }
+
+  async getWorkspaces() {
+    return this.workspaceManager.listWorkspaces();
+  }
+
+  async getCurrentWorkspace() {
+    return this.workspaceManager.getCurrentWorkspace();
+  }
+
+  async getCurrentProject() {
+    return this.workspaceManager.getCurrentProject();
+  }
+
+  async switchWorkspace(workspaceId: string) {
+    await this.workspaceManager.setActiveWorkspace(workspaceId);
+    // TODO: Reload sessions for the new workspace
+  }
+
+  async switchProject(projectId: string) {
+    await this.workspaceManager.setActiveProject(projectId);
+    // TODO: Filter sessions by project
+  }
+
   // Persistence methods
   private async saveState(): Promise<void> {
     try {
@@ -620,11 +707,19 @@ export class AgentManager extends EventEmitter {
             ...sessionData,
             createdAt: new Date(sessionData.createdAt),
             updatedAt: new Date(sessionData.updatedAt),
-            // Mark as completed if it was active when saved
+            // Keep status as-is, but mark it as paused if it was active
+            // This allows resumption while indicating it's not currently running
             status:
-              sessionData.status === "active"
-                ? "completed"
-                : sessionData.status,
+              sessionData.status === "active" ? "paused" : sessionData.status,
+            // Store the Claude session ID for resumption
+            claudeSessionId: sessionData.claudeSessionId,
+            // Restore messages array or initialize empty if not present
+            messages: sessionData.messages
+              ? sessionData.messages.map((msg: any) => ({
+                  ...msg,
+                  timestamp: new Date(msg.timestamp),
+                }))
+              : [],
           };
 
           this.sessions.set(session.id, session);
@@ -634,6 +729,9 @@ export class AgentManager extends EventEmitter {
             name: session.name,
             status: session.status,
             branch: session.branch,
+            messageCount: session.messages.length,
+            claudeSessionId: session.claudeSessionId,
+            canResume: session.status === "paused" && !!session.claudeSessionId,
           });
         }
       }
@@ -700,6 +798,85 @@ export class AgentManager extends EventEmitter {
     }
   }
 
+  async archiveSession(sessionId: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error("Session not found");
+
+    // Mark session as archived
+    session.archived = true;
+    session.updatedAt = new Date();
+    this.sessions.set(sessionId, session);
+
+    logger.info("Session archived", {
+      sessionId,
+      name: session.name,
+    });
+
+    // Save state
+    await this.saveState();
+  }
+
+  async unarchiveSession(sessionId: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error("Session not found");
+
+    // Mark session as unarchived
+    session.archived = false;
+    session.updatedAt = new Date();
+    this.sessions.set(sessionId, session);
+
+    logger.info("Session unarchived", {
+      sessionId,
+      name: session.name,
+    });
+
+    // Save state
+    await this.saveState();
+  }
+
+  async deleteSession(sessionId: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error("Session not found");
+
+    // Stop any running process
+    const abortController = this.processes.get(sessionId);
+    if (abortController && abortController instanceof AbortController) {
+      abortController.abort();
+      this.processes.delete(sessionId);
+    }
+
+    // Remove worktree
+    try {
+      await this.git.raw([
+        "worktree",
+        "remove",
+        session.worktreePath,
+        "--force",
+      ]);
+      logger.info("Removed worktree", {
+        sessionId,
+        worktreePath: session.worktreePath,
+      });
+    } catch (error) {
+      logger.error("Failed to remove worktree", {
+        sessionId,
+        worktreePath: session.worktreePath,
+        error: (error as Error).message,
+      });
+    }
+
+    // Remove from sessions map
+    this.sessions.delete(sessionId);
+
+    logger.info("Session deleted", {
+      sessionId,
+      name: session.name,
+    });
+
+    // Save state
+    await this.saveState();
+  }
+
   async shutdown(): Promise<void> {
     logger.info("Shutting down AgentManager...");
 
@@ -710,9 +887,11 @@ export class AgentManager extends EventEmitter {
     await this.saveState();
 
     // Stop all active processes
-    for (const [sessionId, process] of this.processes.entries()) {
+    for (const [sessionId, abortController] of this.processes.entries()) {
       logger.info("Stopping process for session", { sessionId });
-      process.kill("SIGTERM");
+      if (abortController instanceof AbortController) {
+        abortController.abort();
+      }
     }
 
     this.processes.clear();
