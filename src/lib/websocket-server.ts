@@ -19,7 +19,11 @@ export class WebSocketServer {
       console.log(`📱 Client connected: ${socket.id.substring(0, 8)}`);
 
       // Send initial sessions and debug mode status
-      socket.emit("sessions:list", this.agentManager.getAllSessions());
+      const sessions = this.agentManager.getAllSessions().map((session) => ({
+        ...session,
+        terminalOutput: session.messages || [],
+      }));
+      socket.emit("sessions:list", sessions);
       socket.emit("debug:status", {
         enabled: this.agentManager.getDebugMode(),
       });
@@ -33,7 +37,10 @@ export class WebSocketServer {
               data.name,
               data.task,
             );
-            this.io.emit("session:created", session);
+            this.io.emit("session:created", {
+              ...session,
+              terminalOutput: session.messages || [],
+            });
 
             // Start file watcher for this session
             this.startFileWatcher(session.id);
@@ -133,6 +140,44 @@ export class WebSocketServer {
         }
       });
 
+      // Handle session archive/delete
+      socket.on("session:archive", async (sessionId: string) => {
+        try {
+          await this.agentManager.archiveSession(sessionId);
+          socket.emit("session:archived", { sessionId });
+        } catch (error: any) {
+          socket.emit("error", {
+            message: "Failed to archive session",
+            error: error.message,
+          });
+        }
+      });
+
+      socket.on("session:delete", async (sessionId: string) => {
+        try {
+          await this.agentManager.deleteSession(sessionId);
+          this.stopFileWatcher(sessionId);
+          socket.emit("session:deleted", { sessionId });
+        } catch (error: any) {
+          socket.emit("error", {
+            message: "Failed to delete session",
+            error: error.message,
+          });
+        }
+      });
+
+      socket.on("session:unarchive", async (sessionId: string) => {
+        try {
+          await this.agentManager.unarchiveSession(sessionId);
+          socket.emit("session:unarchived", { sessionId });
+        } catch (error: any) {
+          socket.emit("error", {
+            message: "Failed to unarchive session",
+            error: error.message,
+          });
+        }
+      });
+
       // Handle debug mode control
       socket.on("debug:toggle", (enabled: boolean) => {
         this.agentManager.setDebugMode(enabled);
@@ -143,6 +188,95 @@ export class WebSocketServer {
         socket.emit("debug:status", {
           enabled: this.agentManager.getDebugMode(),
         });
+      });
+
+      // Handle workspace operations
+      socket.on("workspace:list", async () => {
+        try {
+          const workspaces = await this.agentManager.getWorkspaces();
+          const currentWorkspace =
+            await this.agentManager.getCurrentWorkspace();
+          socket.emit("workspace:list", {
+            workspaces,
+            currentWorkspaceId: currentWorkspace?.id,
+          });
+        } catch (error: any) {
+          socket.emit("error", {
+            message: "Failed to list workspaces",
+            error: error.message,
+          });
+        }
+      });
+
+      socket.on(
+        "workspace:create",
+        async (data: { name: string; description?: string }) => {
+          try {
+            const workspace = await this.agentManager
+              .getWorkspaceManager()
+              .createWorkspace(data.name, data.description);
+            this.io.emit("workspace:created", workspace);
+          } catch (error: any) {
+            socket.emit("error", {
+              message: "Failed to create workspace",
+              error: error.message,
+            });
+          }
+        },
+      );
+
+      socket.on("workspace:switch", async (workspaceId: string) => {
+        try {
+          await this.agentManager.switchWorkspace(workspaceId);
+          const workspace = await this.agentManager.getCurrentWorkspace();
+          this.io.emit("workspace:switched", workspace);
+        } catch (error: any) {
+          socket.emit("error", {
+            message: "Failed to switch workspace",
+            error: error.message,
+          });
+        }
+      });
+
+      socket.on(
+        "project:create",
+        async (data: { name: string; path: string; description?: string }) => {
+          try {
+            const currentWorkspace =
+              await this.agentManager.getCurrentWorkspace();
+            if (!currentWorkspace) {
+              throw new Error("No active workspace");
+            }
+
+            const project = await this.agentManager
+              .getWorkspaceManager()
+              .createProject(
+                currentWorkspace.id,
+                data.name,
+                data.path,
+                data.description,
+              );
+            this.io.emit("project:created", project);
+          } catch (error: any) {
+            socket.emit("error", {
+              message: "Failed to create project",
+              error: error.message,
+            });
+          }
+        },
+      );
+
+      socket.on("project:switch", async (projectId: string) => {
+        try {
+          await this.agentManager.switchProject(projectId);
+          const project = await this.agentManager.getCurrentProject();
+          this.io.emit("project:switched", project);
+        } catch (error: any) {
+          socket.emit("error", {
+            message: "Failed to switch project",
+            error: error.message,
+          });
+        }
       });
 
       socket.on("disconnect", () => {

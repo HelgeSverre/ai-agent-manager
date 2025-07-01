@@ -19,8 +19,18 @@ app.use(
 );
 
 // Health check endpoint
-app.get("/health", (req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
+app.get("/health", (req, res) =>
+  res.json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+  }),
+);
+
+// Port info endpoint
+app.get("/port", (req, res) => {
+  const address = httpServer.address();
+  const port = address && typeof address === "object" ? address.port : null;
+  res.json({ port });
 });
 
 // Serve static files (optional - for hosting the frontend)
@@ -39,17 +49,45 @@ const agentManager = new AgentManager();
 const webSocketServer = new WebSocketServer(io, agentManager);
 
 // Start server
-const PORT = process.env.PORT || 3000;
+const DEFAULT_PORT = process.env.PORT || 3000;
+
+async function findAvailablePort(startPort: number): Promise<number> {
+  const net = await import("net");
+
+  return new Promise((resolve) => {
+    const server = net.createServer();
+
+    server.listen(startPort, () => {
+      const port = (server.address() as any).port;
+      server.close(() => resolve(port));
+    });
+
+    server.on("error", () => {
+      // Port is busy, try the next one
+      resolve(findAvailablePort(startPort + 1));
+    });
+  });
+}
 
 async function start() {
   try {
     await agentManager.initialize();
+
+    // Find an available port starting from the default
+    const PORT = await findAvailablePort(Number(DEFAULT_PORT));
 
     httpServer.listen(PORT, () => {
       console.log(`\n🚀 AI Agent Manager Ready`);
       console.log(`   Server:    http://localhost:${PORT}`);
       console.log(`   WebSocket: ws://localhost:${PORT}`);
       console.log(`   Frontend:  http://localhost:${PORT}/index.html\n`);
+
+      // If port is different from default, notify
+      if (PORT !== Number(DEFAULT_PORT)) {
+        console.log(
+          `   ⚠️  Port ${DEFAULT_PORT} was busy, using port ${PORT} instead\n`,
+        );
+      }
     });
   } catch (error) {
     console.error("Failed to start server:", error);
