@@ -46,3 +46,8 @@ test-results/
 test-repo/
 playwright-report/
 playwright/.cache/
+test-*.js
+tmp/
+
+# Local settings
+.claude/settings.local.json
