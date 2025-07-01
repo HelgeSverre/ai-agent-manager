@@ -101,18 +101,16 @@
               Sessions
             </button>
             <button
-              @click="currentView = 'todos'"
-              :class="currentView === 'todos' ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-blue-300' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'"
+              @click="currentView = 'archived'"
+              :class="currentView === 'archived' ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-blue-300' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'"
               class="px-2 py-0.5 rounded text-xs font-medium transition-colors"
             >
-              All TODOs
-            </button>
-            <button
-              @click="currentView = 'dashboard'"
-              :class="currentView === 'dashboard' ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-blue-300' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'"
-              class="px-2 py-0.5 rounded text-xs font-medium transition-colors"
-            >
-              Dashboard
+              Archived
+              <span
+                x-show="sessions.filter(s => s.archived).length > 0"
+                class="ml-1 text-xs bg-zinc-300 dark:bg-zinc-700 px-1 rounded"
+                x-text="sessions.filter(s => s.archived).length"
+              ></span>
             </button>
           </nav>
         </div>
@@ -188,12 +186,6 @@
                     class="w-full px-2 py-1.5 text-xs bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent resize-none"
                     rows="5"
                   ></textarea>
-                  <input
-                    x-model="newSessionName"
-                    type="text"
-                    placeholder="Name"
-                    class="w-full px-2 py-1.5 text-xs bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent mb-2"
-                  />
                   <button
                     type="submit"
                     :disabled="!newSessionTask.trim() || creatingSession"
@@ -213,17 +205,22 @@
                 >
                   No sessions yet. Create one to get started!
                 </div>
-                <template x-for="session in sessions" :key="session.id">
+                <template
+                  x-for="session in sessions.filter(s => !s.archived)"
+                  :key="session.id"
+                >
                   <div
-                    @click="selectSession(session.id)"
                     :class="{
                       'bg-white dark:bg-zinc-800 shadow-sm': selectedSession?.id === session.id,
                       'ring-2 ring-orange-500': session.needsIntervention
                     }"
-                    class="p-3 border-b border-zinc-200 dark:border-zinc-800 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+                    class="group p-3 border-b border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
                   >
                     <div class="flex items-start justify-between mb-1.5">
-                      <div class="flex-1 min-w-0">
+                      <div
+                        class="flex-1 min-w-0 cursor-pointer"
+                        @click="selectSession(session.id)"
+                      >
                         <h3
                           class="font-medium text-xs truncate"
                           x-text="session.name"
@@ -244,24 +241,68 @@
                           class="text-xs px-1.5 py-0.5 rounded-full"
                           x-text="session.status"
                         ></span>
+                        <!-- Action buttons -->
+                        <div
+                          class="opacity-0 group-hover:opacity-100 transition-opacity flex items-center space-x-0.5"
+                        >
+                          <button
+                            @click.stop="archiveSession(session.id)"
+                            title="Archive session"
+                            class="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors"
+                          >
+                            <svg
+                              class="w-3 h-3 text-zinc-600 dark:text-zinc-400"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"
+                              ></path>
+                            </svg>
+                          </button>
+                          <button
+                            @click.stop="deleteSession(session.id)"
+                            title="Delete session"
+                            class="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
+                          >
+                            <svg
+                              class="w-3 h-3 text-red-600 dark:text-red-400"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                              ></path>
+                            </svg>
+                          </button>
+                        </div>
                       </div>
                     </div>
 
                     <!-- Mini Terminal Preview -->
                     <div
+                      @click="selectSession(session.id)"
                       :class="{
                         'bg-zinc-950 text-emerald-400': session.status !== 'error',
                         'bg-red-950/30 text-red-400': session.status === 'error'
                       }"
-                      class="p-1.5 rounded text-xs terminal-text h-16 overflow-hidden"
+                      class="p-1.5 rounded text-xs terminal-text h-16 overflow-hidden cursor-pointer"
                     >
-                      <template x-for="line in session.preview" :key="line">
-                        <div x-text="line" class="truncate opacity-80"></div>
+                      <template x-for="lineData in $data.getIndexedArray(session.preview)" :key="`${session.id}-preview-${lineData.index}`">
+                        <div x-text="lineData.item" class="truncate opacity-80"></div>
                       </template>
                     </div>
 
                     <!-- Progress Bar -->
-                    <div class="mt-1.5">
+                    <div class="mt-1.5" @click="selectSession(session.id)">
                       <div
                         class="flex justify-between text-xs text-zinc-600 dark:text-zinc-500 mb-0.5"
                       >
@@ -285,342 +326,143 @@
             </aside>
 
             <!-- Main Terminal Area -->
-            <main class="flex-1 flex flex-col bg-white dark:bg-zinc-950">
+            <main
+              class="flex-1 flex flex-col bg-white dark:bg-zinc-950 overflow-hidden"
+            >
               <template x-if="selectedSession">
-                <div class="flex-1 flex flex-col">
-                  <!-- Tabs -->
-                  <div
-                    class="flex border-b border-zinc-200 dark:border-zinc-800"
-                  >
-                    <button
-                      @click="activeTab = 'agent'"
-                      :class="activeTab === 'agent' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'"
-                      class="px-3 py-1.5 font-medium text-xs transition-colors"
-                    >
-                      Agent
-                    </button>
-                    <button
-                      @click="activeTab = 'editor'"
-                      :class="activeTab === 'editor' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'"
-                      class="px-3 py-1.5 font-medium text-xs transition-colors"
-                    >
-                      Editor
-                    </button>
-                    <button
-                      @click="activeTab = 'git'"
-                      :class="activeTab === 'git' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'"
-                      class="px-3 py-1.5 font-medium text-xs transition-colors"
-                    >
-                      Git
-                    </button>
-                    <button
-                      @click="activeTab = 'todos'"
-                      :class="activeTab === 'todos' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'"
-                      class="px-3 py-1.5 font-medium text-xs transition-colors relative"
-                    >
-                      TODOs
-                      <span
-                        x-show="selectedSession.todos && selectedSession.todos.filter(t => t.status !== 'done').length > 0"
-                        class="absolute -top-0.5 -right-1.5 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center text-[10px]"
-                      >
-                        <span
-                          x-text="selectedSession.todos.filter(t => t.status !== 'done').length"
-                        ></span>
-                      </span>
-                    </button>
-                  </div>
+                <div class="flex-1 flex flex-col overflow-hidden">
 
                   <!-- Tab Content -->
-                  <div class="flex-1 overflow-hidden">
+                  <div class="flex-1 flex flex-col overflow-hidden">
                     <!-- Agent Tab -->
-                    <div
-                      x-show="activeTab === 'agent'"
-                      class="h-full bg-zinc-950 text-zinc-100 p-3 terminal-text overflow-y-auto scrollbar-thin"
-                    >
-                      <template
-                        x-for="line in selectedSession.terminalOutput"
-                        :key="line.id"
-                      >
+                    <div class="flex-1 flex overflow-hidden">
+                      <!-- Left: Terminal -->
+                      <div class="flex-1 flex flex-col overflow-hidden">
+                        <!-- Terminal Output -->
                         <div
-                          :class="{
-                            'text-emerald-400': line.type === 'success',
-                            'text-red-400': line.type === 'error',
-                            'text-amber-400': line.type === 'warning',
-                            'text-zinc-500': line.type === 'info',
-                            'text-blue-400': line.type === 'assistant',
-                            'text-green-400': line.type === 'user'
-                          }"
-                          x-html="line.content"
-                        ></div>
-                      </template>
-                      <div
-                        x-show="selectedSession.status === 'active'"
-                        class="animate-pulse text-zinc-600 mt-2"
-                      >
-                        Waiting for response...
-                      </div>
-                    </div>
-
-                    <!-- Editor Tab -->
-                    <div x-show="activeTab === 'editor'" class="h-full flex">
-                      <!-- File Browser -->
-                      <div
-                        class="w-56 bg-zinc-100 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 overflow-y-auto scrollbar-thin"
-                      >
-                        <div
-                          class="p-2 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between"
+                          class="flex-1 bg-zinc-950 text-zinc-100 p-3 terminal-text overflow-y-auto scrollbar-thin min-h-0"
                         >
-                          <h3
-                            class="text-xs font-semibold text-zinc-600 dark:text-zinc-400"
+                          <template
+                            x-if="selectedSession && selectedSession.messages && selectedSession.messages.length > 0"
                           >
-                            FILES
+                            <div>
+                              <template
+                                x-for="msgData in $data.getIndexedArray(selectedSession?.messages)"
+                                :key="`${selectedSession.id}-msg-${msgData.index}-${msgData.item.id || msgData.index}`"
+                              >
+                                <div
+                                  :class="{
+                                    'text-emerald-400': msgData.item.type === 'success',
+                                    'text-red-400': msgData.item.type === 'error',
+                                    'text-amber-400': msgData.item.type === 'warning',
+                                    'text-zinc-500': msgData.item.type === 'info',
+                                    'text-blue-400': msgData.item.type === 'assistant',
+                                    'text-green-400': msgData.item.type === 'user'
+                                  }"
+                                  x-html="msgData.item.content"
+                                ></div>
+                              </template>
+                            </div>
+                          </template>
+                          <div
+                            x-show="selectedSession && selectedSession.status === 'active'"
+                            class="animate-pulse text-zinc-600 mt-2"
+                          >
+                            Waiting for response...
+                          </div>
+                        </div>
+
+                        <!-- Input Area -->
+                        <div
+                          class="border-t border-zinc-800 bg-zinc-900 p-3 flex-shrink-0"
+                        >
+                          <form
+                            @submit.prevent="sendMessage()"
+                            class="flex flex-col space-y-2"
+                          >
+                            <textarea
+                              x-model="messageInput"
+                              @keydown.enter="if(!$event.shiftKey) { $event.preventDefault(); sendMessage(); }"
+                              placeholder="Type a message to Claude... (Shift+Enter for new line)"
+                              rows="3"
+                              class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-md text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                              :disabled="sendingMessage || (selectedSession && selectedSession.status === 'error')"
+                            ></textarea>
+                            <div class="flex justify-between items-center">
+                              <span
+                                x-show="selectedSession && selectedSession.status === 'completed'"
+                                class="text-xs text-zinc-500"
+                              >
+                                Session completed - send a message to resume
+                              </span>
+                              <span
+                                x-show="selectedSession && selectedSession.status === 'error'"
+                                class="text-xs text-red-500"
+                              >
+                                Session has errors
+                              </span>
+                              <button
+                                type="submit"
+                                :disabled="!messageInput.trim() || sendingMessage || (selectedSession && selectedSession.status === 'error')"
+                                class="ml-auto px-4 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+                              >
+                                <span x-show="!sendingMessage">Send</span>
+                                <span x-show="sendingMessage">Sending...</span>
+                              </button>
+                            </div>
+                          </form>
+                        </div>
+                      </div>
+
+                      <!-- Right: Debug Console -->
+                      <div
+                        class="w-96 border-l border-zinc-800 flex flex-col bg-zinc-900 overflow-hidden"
+                      >
+                        <div
+                          class="p-2 border-b border-zinc-800 flex items-center justify-between flex-shrink-0"
+                        >
+                          <h3 class="text-xs font-semibold text-zinc-400">
+                            DEBUG CONSOLE
                           </h3>
                           <button
-                            @click="refreshFiles()"
-                            class="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800"
+                            @click="clearDebugLogs()"
+                            class="text-xs px-2 py-0.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded transition-colors"
                           >
-                            <svg
-                              class="w-3 h-3"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                              ></path>
-                            </svg>
+                            Clear
                           </button>
                         </div>
-                        <div class="p-1">
-                          <div
-                            x-show="!selectedSession.files || selectedSession.files.length === 0"
-                            class="p-2 text-xs text-zinc-500 text-center"
-                          >
-                            No files yet
-                          </div>
-                          <template
-                            x-for="file in selectedSession.files"
-                            :key="file.path"
-                          >
-                            <div x-html="renderFileTree(file)"></div>
+                        <div
+                          class="flex-1 p-2 overflow-y-auto scrollbar-thin font-mono text-xs min-h-0"
+                        >
+                          <template x-for="log in debugLogs" :key="log.id">
+                            <div
+                              class="mb-1 p-1 rounded"
+                              :class="{
+                              'bg-red-900/20 text-red-400': log.type === 'error',
+                              'bg-yellow-900/20 text-yellow-400': log.type === 'warn',
+                              'bg-blue-900/20 text-blue-400': log.type === 'info',
+                              'bg-green-900/20 text-green-400': log.type === 'success',
+                              'bg-zinc-800/50 text-zinc-400': log.type === 'log'
+                            }"
+                            >
+                              <div class="flex items-start space-x-2">
+                                <span
+                                  class="text-zinc-600 flex-shrink-0"
+                                  x-text="log.time"
+                                ></span>
+                                <span
+                                  class="font-semibold"
+                                  x-text="log.label"
+                                ></span>
+                              </div>
+                              <pre
+                                class="mt-0.5 text-xs whitespace-pre-wrap"
+                                x-text="log.data"
+                              ></pre>
+                            </div>
                           </template>
                         </div>
                       </div>
-
-                      <!-- Code Editor -->
-                      <div
-                        class="flex-1 flex flex-col bg-zinc-50 dark:bg-zinc-950"
-                      >
-                        <template x-if="selectedFile">
-                          <div class="flex-1 flex flex-col">
-                            <!-- Editor Header -->
-                            <div
-                              class="bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 px-3 py-1 flex items-center justify-between"
-                            >
-                              <div class="flex items-center space-x-2">
-                                <span
-                                  class="text-xs text-zinc-600 dark:text-zinc-400"
-                                  x-text="selectedFile.path"
-                                ></span>
-                                <span
-                                  x-show="selectedFile.modified"
-                                  class="text-xs text-orange-600 dark:text-orange-400"
-                                  >●</span
-                                >
-                              </div>
-                              <div class="flex items-center space-x-2">
-                                <button
-                                  @click="reloadFile()"
-                                  class="text-xs px-2 py-0.5 text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
-                                >
-                                  Reload
-                                </button>
-                                <button
-                                  @click="saveFile()"
-                                  :disabled="!selectedFile.modified"
-                                  class="text-xs px-2 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
-                                >
-                                  Save
-                                </button>
-                              </div>
-                            </div>
-                            <!-- Editor Content -->
-                            <div
-                              class="flex-1 p-3 overflow-auto scrollbar-thin"
-                            >
-                              <div
-                                class="bg-zinc-100 dark:bg-zinc-900 rounded p-3"
-                                style="counter-reset: line"
-                              >
-                                <textarea
-                                  x-model="selectedFile.content"
-                                  @input="selectedFile.modified = true"
-                                  class="w-full h-full bg-transparent text-xs terminal-text outline-none resize-none"
-                                  :rows="selectedFile.content ? selectedFile.content.split('\n').length + 5 : 20"
-                                ></textarea>
-                              </div>
-                            </div>
-                          </div>
-                        </template>
-                        <div
-                          x-show="!selectedFile"
-                          class="flex-1 flex items-center justify-center text-zinc-500 text-xs"
-                        >
-                          Select a file to edit
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- Git Tab -->
-                    <div
-                      x-show="activeTab === 'git'"
-                      class="h-full p-3 overflow-y-auto scrollbar-thin"
-                    >
-                      <div class="space-y-3">
-                        <div>
-                          <h3 class="font-medium text-xs mb-1.5">
-                            Current Branch
-                          </h3>
-                          <div class="bg-zinc-100 dark:bg-zinc-900 p-2 rounded">
-                            <span
-                              class="text-blue-600 dark:text-blue-400 text-xs"
-                              x-text="selectedSession.branch"
-                            ></span>
-                          </div>
-                        </div>
-                        <div>
-                          <div class="flex items-center justify-between mb-1.5">
-                            <h3 class="font-medium text-xs">Recent Commits</h3>
-                            <button
-                              @click="refreshGitLog()"
-                              class="text-xs text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
-                            >
-                              Refresh
-                            </button>
-                          </div>
-                          <div class="space-y-1.5">
-                            <div
-                              x-show="!selectedSession.commits || selectedSession.commits.length === 0"
-                              class="text-xs text-zinc-500"
-                            >
-                              No commits yet
-                            </div>
-                            <template
-                              x-for="commit in selectedSession.commits"
-                              :key="commit.hash"
-                            >
-                              <div
-                                class="bg-zinc-100 dark:bg-zinc-900 p-2 rounded"
-                              >
-                                <div class="flex items-center justify-between">
-                                  <span
-                                    class="font-mono text-xs text-zinc-600 dark:text-zinc-500"
-                                    x-text="commit.hash"
-                                  ></span>
-                                  <span
-                                    class="text-xs text-zinc-500"
-                                    x-text="commit.time"
-                                  ></span>
-                                </div>
-                                <p
-                                  class="mt-0.5 text-xs"
-                                  x-text="commit.message"
-                                ></p>
-                              </div>
-                            </template>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- TODOs Tab -->
-                    <div
-                      x-show="activeTab === 'todos'"
-                      class="h-full p-3 overflow-y-auto scrollbar-thin"
-                    >
-                      <div class="space-y-1.5">
-                        <div
-                          x-show="!selectedSession.todos || selectedSession.todos.length === 0"
-                          class="text-xs text-zinc-500 text-center p-4"
-                        >
-                          No TODOs yet. Claude will create them as it works.
-                        </div>
-                        <template
-                          x-for="todo in selectedSession.todos"
-                          :key="todo.id"
-                        >
-                          <div
-                            class="flex items-center space-x-2 p-2 bg-zinc-50 dark:bg-zinc-900 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                          >
-                            <button
-                              @click="toggleTodo(todo.id)"
-                              :class="{
-                                'bg-green-500 border-green-500': todo.status === 'done',
-                                'bg-yellow-500 border-yellow-500': todo.status === 'in-progress',
-                                'bg-white dark:bg-zinc-950 border-zinc-300 dark:border-zinc-700': todo.status === 'todo'
-                              }"
-                              class="w-4 h-4 rounded border-2 flex items-center justify-center"
-                            >
-                              <svg
-                                x-show="todo.status === 'done'"
-                                class="w-2.5 h-2.5 text-white"
-                                fill="currentColor"
-                                viewBox="0 0 20 20"
-                              >
-                                <path
-                                  fill-rule="evenodd"
-                                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                  clip-rule="evenodd"
-                                ></path>
-                              </svg>
-                            </button>
-                            <span
-                              class="text-xs"
-                              :class="{'line-through text-zinc-500': todo.status === 'done'}"
-                              x-text="todo.title"
-                            ></span>
-                          </div>
-                        </template>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Action Bar -->
-                  <div
-                    class="border-t border-zinc-200 dark:border-zinc-800 px-3 py-2 flex items-center justify-between"
-                  >
-                    <div class="flex items-center space-x-2">
-                      <button
-                        @click="pauseSession()"
-                        :disabled="selectedSession.status !== 'active'"
-                        class="px-2 py-1 text-xs bg-yellow-500 text-white rounded hover:bg-yellow-600 transition-colors disabled:opacity-50"
-                      >
-                        Pause
-                      </button>
-                      <button
-                        @click="resumeSession()"
-                        :disabled="selectedSession.status !== 'paused'"
-                        class="px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600 transition-colors disabled:opacity-50"
-                      >
-                        Resume
-                      </button>
-                      <button
-                        @click="stopSession()"
-                        :disabled="selectedSession.status === 'completed'"
-                        class="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600 transition-colors disabled:opacity-50"
-                      >
-                        Stop
-                      </button>
-                    </div>
-                    <div class="text-xs text-zinc-600 dark:text-zinc-400">
-                      Status:
-                      <span
-                        x-text="selectedSession.status"
-                        class="capitalize"
-                      ></span>
                     </div>
                   </div>
                 </div>
@@ -636,38 +478,69 @@
           </div>
         </template>
 
-        <!-- All TODOs View -->
-        <template x-if="currentView === 'todos'">
+        <!-- Archived View -->
+        <template x-if="currentView === 'archived'">
           <div class="flex-1 p-4 overflow-y-auto scrollbar-thin">
-            <h2 class="text-xl font-bold mb-4">All TODOs</h2>
+            <h2 class="text-xl font-bold mb-4">Archived Sessions</h2>
+            <div
+              x-show="sessions.filter(s => s.archived).length === 0"
+              class="text-center text-zinc-500 text-sm p-8"
+            >
+              No archived sessions yet.
+            </div>
             <div class="grid gap-4">
-              <template x-for="session in sessions" :key="session.id">
-                <div
-                  x-show="session.todos && session.todos.length > 0"
-                  class="bg-white dark:bg-zinc-900 rounded-lg shadow p-4"
-                >
-                  <h3
-                    class="font-semibold text-sm mb-3"
-                    x-text="session.name"
-                  ></h3>
-                  <div class="space-y-1.5">
-                    <template x-for="todo in session.todos" :key="todo.id">
-                      <div class="flex items-center space-x-2">
+              <template
+                x-for="session in sessions.filter(s => s.archived)"
+                :key="session.id"
+              >
+                <div class="bg-white dark:bg-zinc-900 rounded-lg shadow p-4">
+                  <div class="flex items-start justify-between mb-2">
+                    <div>
+                      <h3
+                        class="font-semibold text-sm"
+                        x-text="session.name"
+                      ></h3>
+                      <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                        <span>Archived from: </span>
+                        <span x-text="session.branch"></span>
+                      </p>
+                      <p class="text-xs text-zinc-500 dark:text-zinc-400">
+                        <span>Created: </span>
                         <span
-                          :class="{
-                            'bg-green-500': todo.status === 'done',
-                            'bg-yellow-500': todo.status === 'in-progress',
-                            'bg-zinc-300 dark:bg-zinc-700': todo.status === 'todo'
-                          }"
-                          class="w-2.5 h-2.5 rounded-full"
+                          x-text="new Date(session.createdAt).toLocaleString()"
                         ></span>
-                        <span
-                          class="text-xs"
-                          :class="{'line-through text-zinc-500': todo.status === 'done'}"
-                          x-text="todo.title"
-                        ></span>
-                      </div>
-                    </template>
+                      </p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                      <button
+                        @click="unarchiveSession(session.id)"
+                        class="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                      >
+                        Restore
+                      </button>
+                      <button
+                        @click="deleteSession(session.id)"
+                        class="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                  <div
+                    class="mt-2 flex items-center space-x-4 text-xs text-zinc-600 dark:text-zinc-400"
+                  >
+                    <span
+                      >Tokens: <span x-text="session.tokensUsed || 0"></span
+                    ></span>
+                    <span
+                      >Cost: $<span
+                        x-text="(session.cost || 0).toFixed(4)"
+                      ></span
+                    ></span>
+                    <span
+                      >Messages:
+                      <span x-text="session.messages?.length || 0"></span
+                    ></span>
                   </div>
                 </div>
               </template>
@@ -675,70 +548,7 @@
           </div>
         </template>
 
-        <!-- Dashboard View -->
-        <template x-if="currentView === 'dashboard'">
-          <div class="flex-1 p-4 overflow-y-auto scrollbar-thin">
-            <h2 class="text-xl font-bold mb-4">Dashboard</h2>
 
-            <!-- Stats Grid -->
-            <div
-              class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6"
-            >
-              <div class="bg-white dark:bg-zinc-900 rounded-lg shadow p-4">
-                <h3
-                  class="text-xs font-medium text-zinc-500 dark:text-zinc-400"
-                >
-                  Active Sessions
-                </h3>
-                <p
-                  class="text-2xl font-bold mt-1"
-                  x-text="sessions.filter(s => s.status === 'active').length"
-                ></p>
-              </div>
-              <div class="bg-white dark:bg-zinc-900 rounded-lg shadow p-4">
-                <h3
-                  class="text-xs font-medium text-zinc-500 dark:text-zinc-400"
-                >
-                  Total Tokens
-                </h3>
-                <p
-                  class="text-2xl font-bold mt-1"
-                  x-text="totalTokens.toLocaleString()"
-                ></p>
-              </div>
-              <div class="bg-white dark:bg-zinc-900 rounded-lg shadow p-4">
-                <h3
-                  class="text-xs font-medium text-zinc-500 dark:text-zinc-400"
-                >
-                  Completion Rate
-                </h3>
-                <p
-                  class="text-2xl font-bold mt-1"
-                  x-text="completionRate + '%'"
-                ></p>
-              </div>
-            </div>
-
-            <!-- Recent Activity -->
-            <div class="bg-white dark:bg-zinc-900 rounded-lg shadow p-4">
-              <h3 class="text-sm font-semibold mb-3">Recent Activity</h3>
-              <div class="space-y-2">
-                <template
-                  x-for="activity in recentActivity.slice(0, 10)"
-                  :key="activity.id"
-                >
-                  <div class="flex items-center justify-between text-xs">
-                    <span
-                      class="text-zinc-600 dark:text-zinc-400"
-                      x-text="activity.time"
-                    ></span>
-                    <span x-text="activity.message"></span>
-                  </div>
-                </template>
-              </div>
-            </div>
-          </div>
-        </template>
       </div>
 
       <!-- Keyboard Shortcuts Modal -->
@@ -803,414 +613,717 @@
           </button>
         </div>
       </div>
+
     </div>
 
     <script>
+      // AI Agent Manager - Refactored Alpine.js Application
       document.addEventListener("alpine:init", () => {
         Alpine.data("agentManager", () => ({
+          // ===== CONSTANTS =====
+          MAX_ACTIVITY_ITEMS: 50,
+          MAX_DEBUG_LOGS: 100,
+          SESSION_DELAY_MS: 100,
+          SEND_MESSAGE_DELAY_MS: 1000,
+          
+          // ===== STATE MANAGEMENT =====
           // UI State
-          darkMode: true,
-          currentView: "sessions",
-          activeTab: "agent",
-          selectedSession: null,
-          selectedFile: null,
-          newSessionName: "",
-          newSessionTask: "",
-          showShortcuts: false,
-          creatingSession: false,
-          connectionStatus: "disconnected",
-
-          // Data
-          sessions: [],
-          recentActivity: [],
-
+          ui: {
+            darkMode: true,
+            currentView: "sessions",
+            activeTab: "agent",
+            showShortcuts: false,
+            connectionStatus: "disconnected",
+          },
+          
+          // Session Management
+          sessionState: {
+            selectedSession: null,
+            sessions: [],
+            creatingSession: false,
+            newSessionTask: "",
+            pendingMessages: [],
+          },
+          
+          // Messaging
+          messaging: {
+            messageInput: "",
+            sendingMessage: false,
+          },
+          
+          // File Management
+          fileState: {
+            selectedFile: null,
+            expandedFolders: new Set(),
+          },
+          
+          // Activity & Debug
+          logs: {
+            recentActivity: [],
+            debugLogs: [],
+          },
+          
           // Socket
           socket: null,
-
+          
+          // ===== COMPUTED PROPERTIES =====
+          get darkMode() {
+            return this.ui.darkMode;
+          },
+          
+          set darkMode(value) {
+            this.ui.darkMode = value;
+          },
+          
+          get currentView() {
+            return this.ui.currentView;
+          },
+          
+          set currentView(value) {
+            this.ui.currentView = value;
+          },
+          
+          get activeTab() {
+            return this.ui.activeTab;
+          },
+          
+          set activeTab(value) {
+            this.ui.activeTab = value;
+          },
+          
+          get showShortcuts() {
+            return this.ui.showShortcuts;
+          },
+          
+          set showShortcuts(value) {
+            this.ui.showShortcuts = value;
+          },
+          
+          get connectionStatus() {
+            return this.ui.connectionStatus;
+          },
+          
+          set connectionStatus(value) {
+            this.ui.connectionStatus = value;
+          },
+          
+          get selectedSession() {
+            return this.sessionState.selectedSession;
+          },
+          
+          set selectedSession(value) {
+            this.sessionState.selectedSession = value;
+          },
+          
+          get sessions() {
+            return this.sessionState.sessions;
+          },
+          
+          set sessions(value) {
+            this.sessionState.sessions = value;
+          },
+          
+          get creatingSession() {
+            return this.sessionState.creatingSession;
+          },
+          
+          set creatingSession(value) {
+            this.sessionState.creatingSession = value;
+          },
+          
+          get newSessionTask() {
+            return this.sessionState.newSessionTask;
+          },
+          
+          set newSessionTask(value) {
+            this.sessionState.newSessionTask = value;
+          },
+          
+          get pendingMessages() {
+            return this.sessionState.pendingMessages;
+          },
+          
+          set pendingMessages(value) {
+            this.sessionState.pendingMessages = value;
+          },
+          
+          get messageInput() {
+            return this.messaging.messageInput;
+          },
+          
+          set messageInput(value) {
+            this.messaging.messageInput = value;
+          },
+          
+          get sendingMessage() {
+            return this.messaging.sendingMessage;
+          },
+          
+          set sendingMessage(value) {
+            this.messaging.sendingMessage = value;
+          },
+          
+          get selectedFile() {
+            return this.fileState.selectedFile;
+          },
+          
+          set selectedFile(value) {
+            this.fileState.selectedFile = value;
+          },
+          
+          get expandedFolders() {
+            return this.fileState.expandedFolders;
+          },
+          
+          get recentActivity() {
+            return this.logs.recentActivity;
+          },
+          
+          set recentActivity(value) {
+            this.logs.recentActivity = value;
+          },
+          
+          get debugLogs() {
+            return this.logs.debugLogs;
+          },
+          
+          set debugLogs(value) {
+            this.logs.debugLogs = value;
+          },
+          
+          // ===== INITIALIZATION =====
           init() {
-            // Load dark mode preference from localStorage or default to true
+            this.setupErrorHandling();
+            this.loadUserPreferences();
+            this.setupKeyboardShortcuts();
+            this.connectToBackend();
+          },
+          
+          setupErrorHandling() {
+            window.addEventListener("error", (e) => {
+              console.error("Global error:", e);
+              this.debugLog("Global Error", {
+                message: e.message,
+                filename: e.filename,
+                line: e.lineno,
+                col: e.colno,
+                error: e.error?.stack,
+              }, "error");
+            });
+          },
+          
+          loadUserPreferences() {
             const savedDarkMode = localStorage.getItem("darkMode");
-            this.darkMode =
-              savedDarkMode === null ? true : savedDarkMode === "true";
-
-            // Apply dark mode immediately
+            this.darkMode = savedDarkMode === null ? true : savedDarkMode === "true";
+            this.applyDarkMode();
+          },
+          
+          applyDarkMode() {
             if (this.darkMode) {
               document.documentElement.classList.add("dark");
             } else {
               document.documentElement.classList.remove("dark");
             }
-
-            // Initialize socket connection
-            this.connectToBackend();
-
-            // Keyboard shortcuts
+          },
+          
+          setupKeyboardShortcuts() {
             document.addEventListener("keydown", (e) => {
-              if (e.ctrlKey && e.key === "n") {
-                e.preventDefault();
-                document
-                  .querySelector('input[placeholder*="Session name"]')
-                  .focus();
-              }
-              if (e.ctrlKey && e.key === "d") {
-                e.preventDefault();
-                this.toggleDarkMode();
-              }
-              if (e.key === "?") {
+              if (e.ctrlKey) {
+                switch(e.key) {
+                  case "n":
+                    e.preventDefault();
+                    const taskInput = document.querySelector('[x-model="newSessionTask"]');
+                    if (taskInput) taskInput.focus();
+                    break;
+                  case "d":
+                    e.preventDefault();
+                    this.toggleDarkMode();
+                    break;
+                }
+              } else if (e.key === "?") {
                 this.showShortcuts = true;
               }
             });
           },
-
+          
+          // ===== SOCKET CONNECTION =====
           connectToBackend() {
             this.connectionStatus = "connecting";
-
-            // Connect to backend
-            this.socket = io("http://localhost:3000", {
+            const currentUrl = window.location.origin;
+            
+            this.socket = io(currentUrl, {
               transports: ["websocket", "polling"],
             });
-
-            this.socket.on("connect", () => {
-              console.log("Connected to backend");
-              this.connectionStatus = "connected";
-              this.addActivity("Connected to backend");
-            });
-
-            this.socket.on("disconnect", () => {
-              console.log("Disconnected from backend");
-              this.connectionStatus = "disconnected";
-              this.addActivity("Disconnected from backend");
-            });
-
-            // Handle sessions list (only on initial load)
-            this.socket.on("sessions:list", (sessions) => {
-              console.log("Received initial sessions list:", sessions);
-              // Only set sessions if we don't have any (initial load)
-              if (this.sessions.length === 0) {
-                this.sessions = sessions.map((s) => ({
-                  ...s,
-                  preview: s.preview || ["> Waiting for output..."],
-                  terminalOutput: s.terminalOutput || [],
-                  commits: s.commits || [],
-                  todos: s.todos || [],
-                  files: s.files || [],
-                }));
-
-                // Select first session if none selected
-                if (this.sessions.length > 0 && !this.selectedSession) {
-                  this.selectSession(this.sessions[0].id);
-                }
-              }
-            });
-
-            // Handle new session creation
-            this.socket.on("session:created", (session) => {
-              console.log("Session created event received:", session);
-
-              // Check if session already exists to prevent duplicates
-              if (this.sessions.find((s) => s.id === session.id)) {
-                console.log("Session already exists, skipping:", session.id);
-                return;
-              }
-
-              const newSession = {
-                ...session,
-                preview: ["> Initializing..."],
-                terminalOutput: [],
-                commits: [],
-                todos: [],
-                files: [],
-              };
-              console.log("Adding session to list:", newSession);
-              this.sessions.unshift(newSession);
-              console.log("Sessions after adding:", this.sessions);
-              this.selectSession(session.id);
-              this.addActivity(`Created session: ${session.name}`);
+            
+            this.setupSocketHandlers();
+          },
+          
+          setupSocketHandlers() {
+            // Connection events
+            this.socket.on("connect", () => this.handleConnect());
+            this.socket.on("disconnect", () => this.handleDisconnect());
+            this.socket.on("error", (error) => this.handleSocketError(error));
+            
+            // Session events
+            this.socket.on("sessions:list", (sessions) => this.handleSessionsList(sessions));
+            this.socket.on("session:created", (session) => this.handleSessionCreated(session));
+            this.socket.on("session:status", (data) => this.handleSessionStatus(data));
+            this.socket.on("session:complete", (data) => this.handleSessionComplete(data));
+            this.socket.on("session:intervention", (data) => this.handleSessionIntervention(data));
+            this.socket.on("session:error", (data) => this.handleSessionError(data));
+            
+            // Message events
+            this.socket.on("claude:message", (data) => this.handleClaudeMessage(data));
+            
+            // File events
+            this.socket.on("files:list", (data) => this.handleFilesList(data));
+            this.socket.on("file:content", (data) => this.handleFileContent(data));
+            this.socket.on("file:saved", (data) => this.handleFileSaved(data));
+            
+            // Git events
+            this.socket.on("git:log", (data) => this.handleGitLog(data));
+          },
+          
+          // ===== CONNECTION HANDLERS =====
+          handleConnect() {
+            console.log("Connected to backend");
+            this.connectionStatus = "connected";
+            this.addActivity("Connected to backend");
+          },
+          
+          handleDisconnect() {
+            console.log("Disconnected from backend");
+            this.connectionStatus = "disconnected";
+            this.addActivity("Disconnected from backend");
+          },
+          
+          handleSocketError(error) {
+            console.error("Socket error:", error);
+            this.debugLog("Socket Error", error, "error");
+            this.addActivity(`Error: ${error.message || "An unexpected error occurred"}`);
+            
+            if (error.message?.includes("Failed to create session")) {
               this.creatingSession = false;
-
-              // Process any pending messages for this session
-              if (this.pendingMessages) {
-                const messages = this.pendingMessages.filter(
-                  (m) => m.sessionId === session.id,
-                );
-                messages.forEach((data) => {
-                  console.log(
-                    "Processing pending message for session:",
-                    session.id,
-                  );
-                  this.handleClaudeMessage(data);
-                });
-                // Remove processed messages
-                this.pendingMessages = this.pendingMessages.filter(
-                  (m) => m.sessionId !== session.id,
-                );
-              }
-            });
-
-            // Handle Claude messages
-            this.socket.on("claude:message", (data) => {
-              console.log("Claude message received:", data);
-
-              const session = this.sessions.find(
-                (s) => s.id === data.sessionId,
-              );
-              if (!session) {
-                console.warn(
-                  "Session not found for Claude message, queueing:",
-                  data.sessionId,
-                );
-                // Queue the message for later processing
-                this.pendingMessages = this.pendingMessages || [];
-                this.pendingMessages.push(data);
-                return;
-              }
-
-              // Process the message using the shared handler
-              this.handleClaudeMessage(data);
-            });
-
-            // Handle session status updates
-            this.socket.on("session:status", (data) => {
-              const session = this.sessions.find(
-                (s) => s.id === data.sessionId,
-              );
-              if (session) {
-                session.status = data.status;
-                this.addActivity(
-                  `Session ${session.name} is now ${data.status}`,
-                );
-              }
-            });
-
-            // Handle session completion
-            this.socket.on("session:complete", (data) => {
-              const session = this.sessions.find(
-                (s) => s.id === data.sessionId,
-              );
-              if (session) {
-                session.progress = 100;
-                session.status = "completed";
-                this.addActivity(`Session ${session.name} completed`);
-              }
-            });
-
-            // Handle intervention needed
-            this.socket.on("session:intervention", (data) => {
-              const session = this.sessions.find(
-                (s) => s.id === data.sessionId,
-              );
-              if (session) {
-                session.needsIntervention = true;
-                this.addActivity(
-                  `Session ${session.name} needs intervention: ${data.reason}`,
-                );
-              }
-            });
-
-            // Handle errors
-            this.socket.on("session:error", (data) => {
-              const session = this.sessions.find(
-                (s) => s.id === data.sessionId,
-              );
-              if (session) {
-                session.status = "error";
-                session.terminalOutput.push({
-                  id: Date.now(),
-                  type: "error",
-                  content: `Error: ${data.error}`,
-                });
-                this.addActivity(
-                  `Session ${session.name} encountered an error`,
-                );
-              }
-            });
-
-            // Handle file operations
-            this.socket.on("files:list", (data) => {
-              const session = this.sessions.find(
-                (s) => s.id === data.sessionId,
-              );
-              if (session) {
-                session.files = data.files;
-              }
-            });
-
-            this.socket.on("file:content", (data) => {
-              if (this.selectedFile && this.selectedFile.path === data.path) {
-                this.selectedFile.content = data.content;
-                this.selectedFile.modified = false;
-              }
-            });
-
-            this.socket.on("file:saved", (data) => {
-              if (this.selectedFile && this.selectedFile.path === data.path) {
-                this.selectedFile.modified = false;
-                this.addActivity(`Saved ${data.path}`);
-              }
-            });
-
-            // Handle git operations
-            this.socket.on("git:log", (data) => {
-              const session = this.sessions.find(
-                (s) => s.id === data.sessionId,
-              );
-              if (session) {
-                session.commits = data.commits;
-              }
-            });
-
-            // Handle general errors
-            this.socket.on("error", (error) => {
-              console.error("Socket error:", error);
-              alert(error.message || "An error occurred");
-              if (error.message?.includes("Failed to create session")) {
-                this.creatingSession = false;
-              }
-            });
-          },
-
-          // Helper Methods
-          escapeHtml(text) {
-            const div = document.createElement("div");
-            div.textContent = text;
-            return div.innerHTML;
-          },
-
-          addActivity(message) {
-            this.recentActivity.unshift({
-              id: Date.now(),
-              time: new Date().toLocaleTimeString(),
-              message,
-            });
-            if (this.recentActivity.length > 50) {
-              this.recentActivity = this.recentActivity.slice(0, 50);
             }
           },
-
-          // Dark mode toggle
-          toggleDarkMode() {
-            this.darkMode = !this.darkMode;
-            localStorage.setItem("darkMode", this.darkMode);
-            if (this.darkMode) {
-              document.documentElement.classList.add("dark");
-            } else {
-              document.documentElement.classList.remove("dark");
+          
+          // ===== SESSION EVENT HANDLERS =====
+          handleSessionsList(sessions) {
+            console.log("Received initial sessions list:", sessions);
+            this.debugLog("sessions:list", sessions, "info");
+            
+            if (this.sessions.length === 0) {
+              this.sessions = sessions.map((s) => this.normalizeSession(s));
+              
+              this.debugLog("Sessions initialized", {
+                count: this.sessions.length
+              }, "success");
+              
+              if (this.sessions.length > 0 && !this.selectedSession) {
+                this.selectSession(this.sessions[0].id);
+              }
             }
           },
-
-          // Handle Claude messages
-          handleClaudeMessage(data) {
-            const session = this.sessions.find((s) => s.id === data.sessionId);
-            if (!session) {
-              console.warn(
-                "Session still not found for message:",
-                data.sessionId,
-              );
+          
+          handleSessionCreated(session) {
+            console.log("Session created event received:", session);
+            this.debugLog("session:created", session, "info");
+            
+            if (this.sessions.find((s) => s.id === session.id)) {
+              console.log("Session already exists, skipping:", session.id);
+              this.debugLog("Session already exists", {
+                sessionId: session.id
+              }, "warn");
               return;
             }
-
+            
+            const newSession = this.normalizeSession(session);
+            
+            this.debugLog("Creating new session", {
+              id: newSession.id,
+              hasMessages: !!session.messages,
+              messagesLength: session.messages?.length || 0,
+            }, "info");
+            
+            console.log("Adding session to list:", newSession);
+            this.sessions.unshift(newSession);
+            console.log("Sessions after adding:", this.sessions);
+            
+            setTimeout(() => {
+              this.selectSession(session.id);
+            }, this.SESSION_DELAY_MS);
+            
+            this.addActivity(`Created session: ${session.name}`);
+            this.creatingSession = false;
+            
+            this.processPendingMessages(session.id);
+          },
+          
+          handleSessionStatus(data) {
+            const session = this.sessions.find((s) => s.id === data.sessionId);
+            if (session) {
+              session.status = data.status;
+              this.addActivity(`Session ${session.name} is now ${data.status}`);
+            }
+          },
+          
+          handleSessionComplete(data) {
+            const session = this.sessions.find((s) => s.id === data.sessionId);
+            if (session) {
+              session.progress = 100;
+              session.status = "completed";
+              this.addActivity(`Session ${session.name} completed`);
+            }
+          },
+          
+          handleSessionIntervention(data) {
+            const session = this.sessions.find((s) => s.id === data.sessionId);
+            if (session) {
+              session.needsIntervention = true;
+              this.addActivity(`Session ${session.name} needs intervention: ${data.reason}`);
+            }
+          },
+          
+          handleSessionError(data) {
+            const session = this.sessions.find((s) => s.id === data.sessionId);
+            if (session) {
+              session.status = "error";
+              session.messages.push({
+                id: Date.now(),
+                type: "error",
+                content: `Error: ${data.error}`,
+              });
+              this.addActivity(`Session ${session.name} encountered an error`);
+            }
+          },
+          
+          // ===== MESSAGE HANDLERS =====
+          handleClaudeMessage(data) {
+            console.log("Claude message received:", data);
+            
+            const session = this.sessions.find((s) => s.id === data.sessionId);
+            if (!session) {
+              console.warn("Session not found for Claude message, queueing:", data.sessionId);
+              this.pendingMessages.push(data);
+              return;
+            }
+            
+            this.processClaudeMessage(session, data);
+          },
+          
+          processClaudeMessage(session, data) {
+            this.debugLog("handleClaudeMessage", {
+              sessionId: data.sessionId,
+              messageType: data.message?.type
+            }, "info");
+            
             const message = data.message;
-
-            // Update terminal output based on message type
+            
+            if (!session.messages) {
+              session.messages = [];
+              this.debugLog("Initialized messages for session", {
+                sessionId: data.sessionId
+              }, "warn");
+            }
+            
             if (message.type === "assistant") {
               const content = message.message?.content || "";
               if (content) {
-                session.terminalOutput.push({
+                const terminalMessage = {
                   id: Date.now(),
                   type: "assistant",
-                  content:
-                    this.escapeHtml(content).substring(0, 500) +
-                    (content.length > 500 ? "..." : ""),
-                });
+                  content: this.escapeHtml(content).substring(0, 500) + 
+                          (content.length > 500 ? "..." : ""),
+                };
+                session.messages.push(terminalMessage);
+                this.debugLog("Added assistant message", {
+                  sessionId: data.sessionId,
+                  contentLength: content.length,
+                  messagesLength: session.messages.length,
+                }, "success");
               }
             } else if (message.type === "result") {
-              // Handle result messages from Claude
               const content = message.result || "Task completed";
-              session.terminalOutput.push({
+              const terminalMessage = {
                 id: Date.now(),
                 type: "assistant",
                 content: this.escapeHtml(content),
-              });
-              // Update preview
+              };
+              session.messages.push(terminalMessage);
               session.preview = ["✓ " + content.substring(0, 50) + "..."];
+              this.debugLog("Added result message", {
+                sessionId: data.sessionId,
+                result: content
+              }, "success");
             } else if (message.type === "user") {
               const content = message.message?.content || "";
               if (content) {
-                session.terminalOutput.push({
+                const terminalMessage = {
                   id: Date.now(),
                   type: "user",
                   content: this.escapeHtml(content),
-                });
+                };
+                session.messages.push(terminalMessage);
+                this.debugLog("Added user message", {
+                  sessionId: data.sessionId,
+                  content
+                }, "success");
               }
             }
-
-            // Update preview with last few outputs
+            
             if (message.type !== "result") {
-              session.preview = session.terminalOutput
+              session.preview = session.messages
                 .slice(-3)
                 .map((o) => o.content.substring(0, 60) + "...");
             }
-
-            // Message processed
           },
-
-          // Session Management
-          createSession() {
-            if (!this.newSessionTask.trim()) return;
-
-            this.creatingSession = true;
-            this.socket.emit("session:create", {
-              name: this.newSessionName.trim() || undefined,
-              task: this.newSessionTask,
+          
+          processPendingMessages(sessionId) {
+            const messages = this.pendingMessages.filter((m) => m.sessionId === sessionId);
+            messages.forEach((data) => {
+              console.log("Processing pending message for session:", sessionId);
+              this.handleClaudeMessage(data);
             });
-
-            this.newSessionName = "";
-            this.newSessionTask = "";
+            this.pendingMessages = this.pendingMessages.filter((m) => m.sessionId !== sessionId);
           },
-
-          selectSession(id) {
-            this.selectedSession = this.sessions.find((s) => s.id === id);
-            this.selectedFile = null;
-
-            if (this.selectedSession) {
-              // Request files for this session
-              this.socket.emit("files:list", id);
-              // Request git log
-              this.socket.emit("git:log", id);
+          
+          // ===== FILE EVENT HANDLERS =====
+          handleFilesList(data) {
+            const session = this.sessions.find((s) => s.id === data.sessionId);
+            if (session) {
+              session.files = data.files;
             }
           },
-
+          
+          handleFileContent(data) {
+            if (this.selectedFile && this.selectedFile.path === data.path) {
+              this.selectedFile.content = data.content;
+              this.selectedFile.modified = false;
+            }
+          },
+          
+          handleFileSaved(data) {
+            if (this.selectedFile && this.selectedFile.path === data.path) {
+              this.selectedFile.modified = false;
+              this.addActivity(`Saved ${data.path}`);
+            }
+          },
+          
+          // ===== GIT EVENT HANDLERS =====
+          handleGitLog(data) {
+            const session = this.sessions.find((s) => s.id === data.sessionId);
+            if (session) {
+              session.commits = data.commits;
+            }
+          },
+          
+          // ===== UI ACTIONS =====
+          toggleDarkMode() {
+            this.darkMode = !this.darkMode;
+            localStorage.setItem("darkMode", this.darkMode);
+            this.applyDarkMode();
+          },
+          
+          // ===== SESSION MANAGEMENT =====
+          createSession() {
+            if (!this.newSessionTask.trim()) return;
+            
+            this.creatingSession = true;
+            this.socket.emit("session:create", {
+              name: undefined,
+              task: this.newSessionTask,
+            });
+            
+            this.newSessionTask = "";
+          },
+          
+          selectSession(id) {
+            const session = this.sessions.find((s) => s.id === id);
+            if (!session) {
+              this.debugLog("selectSession", {
+                sessionId: id,
+                error: "Session not found",
+              }, "error");
+              return;
+            }
+            
+            if (!session.messages) {
+              session.messages = [];
+            }
+            
+            this.selectedSession = session;
+            this.selectedFile = null;
+            
+            this.debugLog("selectSession", {
+              sessionId: id,
+              found: !!this.selectedSession,
+              messagesLength: this.selectedSession?.messages?.length || 0,
+            }, "info");
+            
+            this.socket.emit("files:list", id);
+            this.socket.emit("git:log", id);
+          },
+          
           pauseSession() {
-            if (
-              this.selectedSession &&
-              this.selectedSession.status === "active"
-            ) {
+            if (this.selectedSession && this.selectedSession.status === "active") {
               this.socket.emit("session:pause", this.selectedSession.id);
             }
           },
-
+          
           resumeSession() {
-            if (
-              this.selectedSession &&
-              this.selectedSession.status === "paused"
-            ) {
+            if (this.selectedSession && this.selectedSession.status === "paused") {
               this.socket.emit("session:resume", {
                 sessionId: this.selectedSession.id,
               });
             }
           },
-
+          
           stopSession() {
-            if (
-              this.selectedSession &&
-              this.selectedSession.status !== "completed"
-            ) {
+            if (this.selectedSession && this.selectedSession.status !== "completed") {
               if (confirm("Are you sure you want to stop this session?")) {
                 this.socket.emit("session:stop", this.selectedSession.id);
               }
             }
           },
-
-          // File Operations
+          
+          sendMessage() {
+            if (!this.messageInput.trim() || !this.selectedSession || this.sendingMessage) {
+              return;
+            }
+            
+            const message = this.messageInput.trim();
+            this.sendingMessage = true;
+            
+            this.selectedSession.messages.push({
+              id: Date.now(),
+              type: "user",
+              content: this.escapeHtml(message),
+            });
+            
+            this.messageInput = "";
+            this.selectedSession.status = "active";
+            
+            this.socket.emit("session:resume", {
+              sessionId: this.selectedSession.id,
+              prompt: message,
+            });
+            
+            setTimeout(() => {
+              this.sendingMessage = false;
+            }, this.SEND_MESSAGE_DELAY_MS);
+          },
+          
+          archiveSession(sessionId) {
+            const session = this.sessions.find((s) => s.id === sessionId);
+            if (!session) return;
+            
+            if (confirm(`Archive session "${session.name}"?`)) {
+              session.archived = true;
+              
+              if (this.selectedSession?.id === sessionId) {
+                this.selectedSession = null;
+              }
+              
+              this.socket.emit("session:archive", sessionId);
+              this.addActivity(`Archived session: ${session.name}`);
+            }
+          },
+          
+          deleteSession(sessionId) {
+            const session = this.sessions.find((s) => s.id === sessionId);
+            if (!session) return;
+            
+            if (confirm(`Permanently delete session "${session.name}"? This cannot be undone.`)) {
+              if (this.selectedSession?.id === sessionId) {
+                this.selectedSession = null;
+              }
+              
+              this.sessions = this.sessions.filter((s) => s.id !== sessionId);
+              
+              this.socket.emit("session:delete", sessionId);
+              this.addActivity(`Deleted session: ${session.name}`);
+            }
+          },
+          
+          unarchiveSession(sessionId) {
+            const session = this.sessions.find((s) => s.id === sessionId);
+            if (!session) return;
+            
+            session.archived = false;
+            
+            this.socket.emit("session:unarchive", sessionId);
+            this.addActivity(`Restored session: ${session.name}`);
+          },
+          
+          // ===== FILE MANAGEMENT =====
+          toggleFolder(path) {
+            if (this.expandedFolders.has(path)) {
+              this.expandedFolders.delete(path);
+            } else {
+              this.expandedFolders.add(path);
+            }
+          },
+          
+          isFolderExpanded(path) {
+            return this.expandedFolders.has(path);
+          },
+          
+          openFile(path) {
+            const findFile = (files, targetPath) => {
+              for (const file of files) {
+                if (file.path === targetPath) return file;
+                if (file.children) {
+                  const found = findFile(file.children, targetPath);
+                  if (found) return found;
+                }
+              }
+              return null;
+            };
+            
+            const file = findFile(this.selectedSession.files, path);
+            if (file && file.type === "file") {
+              this.selectedFile = { ...file, modified: false };
+              
+              if (!this.selectedFile.content) {
+                this.socket.emit("file:read", {
+                  sessionId: this.selectedSession.id,
+                  path: path,
+                });
+              }
+            }
+          },
+          
+          refreshFiles() {
+            if (this.selectedSession) {
+              this.socket.emit("files:list", this.selectedSession.id);
+            }
+          },
+          
+          reloadFile() {
+            if (this.selectedFile && this.selectedSession) {
+              this.socket.emit("file:read", {
+                sessionId: this.selectedSession.id,
+                path: this.selectedFile.path,
+              });
+            }
+          },
+          
+          saveFile() {
+            if (this.selectedFile && this.selectedSession && this.selectedFile.modified) {
+              this.socket.emit("file:save", {
+                sessionId: this.selectedSession.id,
+                path: this.selectedFile.path,
+                content: this.selectedFile.content,
+              });
+            }
+          },
+          
+          refreshGitLog() {
+            if (this.selectedSession) {
+              this.socket.emit("git:log", this.selectedSession.id);
+            }
+          },
+          
           renderFileTree(file) {
             if (file.type === "folder") {
               return `
@@ -1270,140 +1383,103 @@
               `;
             }
           },
-
-          expandedFolders: new Set(),
-
-          toggleFolder(path) {
-            if (this.expandedFolders.has(path)) {
-              this.expandedFolders.delete(path);
-            } else {
-              this.expandedFolders.add(path);
-            }
-          },
-
-          isFolderExpanded(path) {
-            return this.expandedFolders.has(path);
-          },
-
-          openFile(path) {
-            const findFile = (files, targetPath) => {
-              for (const file of files) {
-                if (file.path === targetPath) return file;
-                if (file.children) {
-                  const found = findFile(file.children, targetPath);
-                  if (found) return found;
-                }
-              }
-              return null;
-            };
-
-            const file = findFile(this.selectedSession.files, path);
-            if (file && file.type === "file") {
-              this.selectedFile = { ...file, modified: false };
-
-              // Request file content if not already loaded
-              if (!this.selectedFile.content) {
-                this.socket.emit("file:read", {
-                  sessionId: this.selectedSession.id,
-                  path: path,
-                });
-              }
-            }
-          },
-
-          refreshFiles() {
-            if (this.selectedSession) {
-              this.socket.emit("files:list", this.selectedSession.id);
-            }
-          },
-
-          reloadFile() {
-            if (this.selectedFile && this.selectedSession) {
-              this.socket.emit("file:read", {
-                sessionId: this.selectedSession.id,
-                path: this.selectedFile.path,
-              });
-            }
-          },
-
-          saveFile() {
-            if (
-              this.selectedFile &&
-              this.selectedSession &&
-              this.selectedFile.modified
-            ) {
-              this.socket.emit("file:save", {
-                sessionId: this.selectedSession.id,
-                path: this.selectedFile.path,
-                content: this.selectedFile.content,
-              });
-            }
-          },
-
-          refreshGitLog() {
-            if (this.selectedSession) {
-              this.socket.emit("git:log", this.selectedSession.id);
-            }
-          },
-
-          // Computed Properties
+          
+          // ===== COMPUTED PROPERTIES =====
           get totalTokens() {
-            return this.sessions.reduce(
-              (sum, session) => sum + (session.tokensUsed || 0),
-              0,
-            );
+            return this.sessions.reduce((sum, session) => sum + (session.tokensUsed || 0), 0);
           },
-
+          
           get totalTasks() {
-            return this.sessions.reduce(
-              (sum, session) => sum + (session.todos?.length || 0),
-              0,
-            );
+            return this.sessions.reduce((sum, session) => sum + (session.todos?.length || 0), 0);
           },
-
+          
           get tasksCompleted() {
             return this.sessions.reduce(
-              (sum, session) =>
-                sum +
-                (session.todos?.filter((t) => t.status === "done").length || 0),
-              0,
+              (sum, session) => sum + (session.todos?.filter((t) => t.status === "done").length || 0),
+              0
             );
           },
-
+          
           get tasksInProgress() {
             return this.sessions.reduce(
-              (sum, session) =>
-                sum +
-                (session.todos?.filter((t) => t.status === "in-progress")
-                  .length || 0),
-              0,
+              (sum, session) => sum + (session.todos?.filter((t) => t.status === "in-progress").length || 0),
+              0
             );
           },
-
+          
           get tasksTodo() {
             return this.sessions.reduce(
-              (sum, session) =>
-                sum +
-                (session.todos?.filter((t) => t.status === "todo").length || 0),
-              0,
+              (sum, session) => sum + (session.todos?.filter((t) => t.status === "todo").length || 0),
+              0
             );
           },
-
+          
           get completionRate() {
             return this.totalTasks > 0
               ? Math.round((this.tasksCompleted / this.totalTasks) * 100)
               : 0;
           },
-
+          
           toggleTodo(todoId) {
-            const todo = this.selectedSession.todos.find(
-              (t) => t.id === todoId,
-            );
+            const todo = this.selectedSession.todos.find((t) => t.id === todoId);
             if (todo) {
               const states = ["todo", "in-progress", "done"];
               const currentIndex = states.indexOf(todo.status);
               todo.status = states[(currentIndex + 1) % states.length];
             }
+          },
+          
+          // ===== UTILITY FUNCTIONS =====
+          escapeHtml(text) {
+            const div = document.createElement("div");
+            div.textContent = text;
+            return div.innerHTML;
+          },
+          
+          addActivity(message) {
+            this.recentActivity.unshift({
+              id: Date.now(),
+              time: new Date().toLocaleTimeString(),
+              message,
+            });
+            if (this.recentActivity.length > this.MAX_ACTIVITY_ITEMS) {
+              this.recentActivity = this.recentActivity.slice(0, this.MAX_ACTIVITY_ITEMS);
+            }
+          },
+          
+          debugLog(label, data, type = "log") {
+            const log = {
+              id: Date.now() + Math.random(),
+              time: new Date().toLocaleTimeString(),
+              label,
+              data: typeof data === "object" ? JSON.stringify(data, null, 2) : String(data),
+              type,
+            };
+            this.debugLogs.unshift(log);
+            
+            if (this.debugLogs.length > this.MAX_DEBUG_LOGS) {
+              this.debugLogs = this.debugLogs.slice(0, this.MAX_DEBUG_LOGS);
+            }
+          },
+          
+          clearDebugLogs() {
+            this.debugLogs = [];
+          },
+          
+          getIndexedArray(array) {
+            if (!array) return [];
+            return array.map((item, index) => ({ item, index }));
+          },
+          
+          normalizeSession(session) {
+            return {
+              ...session,
+              preview: session.preview || ["> Waiting for output..."],
+              messages: session.messages || [],
+              commits: session.commits || [],
+              todos: session.todos || [],
+              files: session.files || [],
+            };
           },
         }));
       });
